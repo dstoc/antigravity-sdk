@@ -14,10 +14,10 @@
 
 //! Strongly-typed domain models for the Google Antigravity SDK.
 
+use futures_util::stream::{BoxStream, StreamExt};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use futures_util::stream::{BoxStream, StreamExt};
 
 // =============================================================================
 // Error Types
@@ -91,7 +91,9 @@ impl<'de> Deserialize<'de> for StepState {
                 match v {
                     "STATE_ACTIVE" | "Active" | "active" => Ok(StepState::Active),
                     "STATE_DONE" | "Done" | "done" => Ok(StepState::Done),
-                    "STATE_WAITING_FOR_USER" | "WaitingForUser" | "waiting_for_user" => Ok(StepState::WaitingForUser),
+                    "STATE_WAITING_FOR_USER" | "WaitingForUser" | "waiting_for_user" => {
+                        Ok(StepState::WaitingForUser)
+                    }
                     "STATE_ERROR" | "Error" | "error" => Ok(StepState::Error),
                     _ => Ok(StepState::Unspecified),
                 }
@@ -196,7 +198,9 @@ impl<'de> Deserialize<'de> for StepTarget {
                 match v {
                     "TARGET_USER" | "User" | "user" => Ok(StepTarget::User),
                     "TARGET_MODEL" | "Model" | "model" => Ok(StepTarget::Model),
-                    "TARGET_ENVIRONMENT" | "Environment" | "environment" => Ok(StepTarget::Environment),
+                    "TARGET_ENVIRONMENT" | "Environment" | "environment" => {
+                        Ok(StepTarget::Environment)
+                    }
                     _ => Ok(StepTarget::Unknown),
                 }
             }
@@ -344,7 +348,11 @@ impl ThinkingLevel {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenerationConfig {
-    #[serde(rename = "thinkingLevel", alias = "thinking_level", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "thinkingLevel",
+        alias = "thinking_level",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub thinking_level: Option<ThinkingLevel>,
 }
 
@@ -371,24 +379,57 @@ pub struct GeminiConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WireGeminiConfig {
-    #[serde(rename = "apiKey", alias = "api_key", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "apiKey",
+        alias = "api_key",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub api_key: Option<String>,
-    #[serde(rename = "baseUrl", alias = "base_url", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "baseUrl",
+        alias = "base_url",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub base_url: Option<String>,
-    #[serde(rename = "modelName", alias = "model_name", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "modelName",
+        alias = "model_name",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub model_name: Option<String>,
-    #[serde(rename = "thinkingLevel", alias = "thinking_level", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "thinkingLevel",
+        alias = "thinking_level",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub thinking_level: Option<String>,
-    #[serde(rename = "enableUrlContext", alias = "enable_url_context", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "enableUrlContext",
+        alias = "enable_url_context",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub enable_url_context: Option<bool>,
-    #[serde(rename = "enableGoogleSearch", alias = "enable_google_search", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "enableGoogleSearch",
+        alias = "enable_google_search",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub enable_google_search: Option<bool>,
 }
 
 impl GeminiConfig {
     pub fn to_wire(&self) -> WireGeminiConfig {
-        let effective_api_key = self.models.default.api_key.clone().or_else(|| self.api_key.clone());
-        let thinking_level = self.models.default.generation.as_ref()
+        let effective_api_key = self
+            .models
+            .default
+            .api_key
+            .clone()
+            .or_else(|| self.api_key.clone());
+        let thinking_level = self
+            .models
+            .default
+            .generation
+            .as_ref()
             .and_then(|g| g.thinking_level.map(|tl| tl.as_str().to_string()));
         WireGeminiConfig {
             api_key: effective_api_key,
@@ -443,7 +484,11 @@ pub struct CustomSystemInstructions {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppendedSystemInstructions {
-    #[serde(rename = "customIdentity", alias = "custom_identity", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "customIdentity",
+        alias = "custom_identity",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub custom_identity: Option<String>,
     #[serde(rename = "appendedSections", alias = "appended_sections")]
     pub appended_sections: Vec<SystemInstructionSection>,
@@ -495,32 +540,58 @@ pub struct Tool {
     pub description: String,
     #[serde(rename = "parametersJsonSchema", alias = "parameters_json_schema")]
     pub parameters_json_schema: String,
-    #[serde(rename = "responseJsonSchema", alias = "response_json_schema", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "responseJsonSchema",
+        alias = "response_json_schema",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub response_json_schema: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FindToolConfig { pub enabled: bool }
+pub struct FindToolConfig {
+    pub enabled: bool,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RunCommandToolConfig { pub enabled: bool }
+pub struct RunCommandToolConfig {
+    pub enabled: bool,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SubagentsConfig { pub enabled: bool }
+pub struct SubagentsConfig {
+    pub enabled: bool,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserQuestionsConfig { pub enabled: bool }
+pub struct UserQuestionsConfig {
+    pub enabled: bool,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FileEditToolConfig { pub enabled: bool }
+pub struct FileEditToolConfig {
+    pub enabled: bool,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ViewFileToolConfig { pub enabled: bool }
+pub struct ViewFileToolConfig {
+    pub enabled: bool,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WriteToFileToolConfig { pub enabled: bool }
+pub struct WriteToFileToolConfig {
+    pub enabled: bool,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GrepSearchToolConfig { pub enabled: bool }
+pub struct GrepSearchToolConfig {
+    pub enabled: bool,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ListDirToolConfig { pub enabled: bool }
+pub struct ListDirToolConfig {
+    pub enabled: bool,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenerateImageToolConfig {
     pub enabled: bool,
-    #[serde(rename = "modelName", alias = "model_name", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "modelName",
+        alias = "model_name",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub model_name: Option<String>,
 }
 
@@ -549,11 +620,19 @@ pub struct HarnessSideTools {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HarnessConfig {
     pub tools: Vec<Tool>,
-    #[serde(rename = "systemInstructions", alias = "system_instructions", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "systemInstructions",
+        alias = "system_instructions",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub system_instructions: Option<SystemInstructions>,
     #[serde(rename = "cascadeId", alias = "cascade_id")]
     pub cascade_id: String,
-    #[serde(rename = "geminiConfig", alias = "gemini_config", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "geminiConfig",
+        alias = "gemini_config",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub gemini_config: Option<WireGeminiConfig>,
     pub workspaces: Vec<Workspace>,
     #[serde(rename = "skillsPaths", alias = "skills_paths")]
@@ -608,9 +687,17 @@ pub struct ToolCall {
     pub name: String,
     #[serde(default)]
     pub args: serde_json::Value,
-    #[serde(rename = "argumentsJson", alias = "arguments_json", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "argumentsJson",
+        alias = "arguments_json",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub arguments_json: Option<String>,
-    #[serde(rename = "canonicalPath", alias = "canonical_path", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "canonicalPath",
+        alias = "canonical_path",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub canonical_path: Option<String>,
 }
 
@@ -680,15 +767,40 @@ where
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UsageMetadata {
-    #[serde(rename = "promptTokenCount", alias = "prompt_token_count", deserialize_with = "deserialize_u64_or_str", default)]
+    #[serde(
+        rename = "promptTokenCount",
+        alias = "prompt_token_count",
+        deserialize_with = "deserialize_u64_or_str",
+        default
+    )]
     pub prompt_token_count: Option<u64>,
-    #[serde(rename = "cachedContentTokenCount", alias = "cached_content_token_count", deserialize_with = "deserialize_u64_or_str", default)]
+    #[serde(
+        rename = "cachedContentTokenCount",
+        alias = "cached_content_token_count",
+        deserialize_with = "deserialize_u64_or_str",
+        default
+    )]
     pub cached_content_token_count: Option<u64>,
-    #[serde(rename = "candidatesTokenCount", alias = "candidates_token_count", deserialize_with = "deserialize_u64_or_str", default)]
+    #[serde(
+        rename = "candidatesTokenCount",
+        alias = "candidates_token_count",
+        deserialize_with = "deserialize_u64_or_str",
+        default
+    )]
     pub candidates_token_count: Option<u64>,
-    #[serde(rename = "thoughtsTokenCount", alias = "thoughts_token_count", deserialize_with = "deserialize_u64_or_str", default)]
+    #[serde(
+        rename = "thoughtsTokenCount",
+        alias = "thoughts_token_count",
+        deserialize_with = "deserialize_u64_or_str",
+        default
+    )]
     pub thoughts_token_count: Option<u64>,
-    #[serde(rename = "totalTokenCount", alias = "total_token_count", deserialize_with = "deserialize_u64_or_str", default)]
+    #[serde(
+        rename = "totalTokenCount",
+        alias = "total_token_count",
+        deserialize_with = "deserialize_u64_or_str",
+        default
+    )]
     pub total_token_count: Option<u64>,
 }
 
@@ -744,9 +856,19 @@ pub struct InitializeConversationEvent {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OutputEvent {
-    #[serde(rename = "seqNum", alias = "seq_num", deserialize_with = "deserialize_u64_or_str", default)]
+    #[serde(
+        rename = "seqNum",
+        alias = "seq_num",
+        deserialize_with = "deserialize_u64_or_str",
+        default
+    )]
     pub seq_num: Option<u64>,
-    #[serde(rename = "timestampMicros", alias = "timestamp_micros", deserialize_with = "deserialize_u64_or_str", default)]
+    #[serde(
+        rename = "timestampMicros",
+        alias = "timestamp_micros",
+        deserialize_with = "deserialize_u64_or_str",
+        default
+    )]
     pub timestamp_micros: Option<u64>,
     #[serde(rename = "stepUpdate", alias = "step_update")]
     pub step_update: Option<StepUpdate>,
@@ -800,7 +922,10 @@ pub struct StepUpdate {
     pub error: Option<ActionError>,
     #[serde(rename = "requestText", alias = "request_text")]
     pub request_text: Option<String>,
-    #[serde(rename = "toolConfirmationRequest", alias = "tool_confirmation_request")]
+    #[serde(
+        rename = "toolConfirmationRequest",
+        alias = "tool_confirmation_request"
+    )]
     pub tool_confirmation_request: Option<serde_json::Value>,
     #[serde(rename = "questionsRequest", alias = "questions_request")]
     pub questions_request: Option<UserQuestionsRequest>,
@@ -910,19 +1035,47 @@ impl<'de> Deserialize<'de> for TrajectoryState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InputEvent {
-    #[serde(rename = "userInput", alias = "user_input", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "userInput",
+        alias = "user_input",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub user_input: Option<String>,
-    #[serde(rename = "complexUserInput", alias = "complex_user_input", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "complexUserInput",
+        alias = "complex_user_input",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub complex_user_input: Option<UserInput>,
-    #[serde(rename = "toolConfirmation", alias = "tool_confirmation", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "toolConfirmation",
+        alias = "tool_confirmation",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub tool_confirmation: Option<ToolConfirmation>,
-    #[serde(rename = "toolResponse", alias = "tool_response", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "toolResponse",
+        alias = "tool_response",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub tool_response: Option<ToolResponse>,
-    #[serde(rename = "questionResponse", alias = "question_response", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "questionResponse",
+        alias = "question_response",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub question_response: Option<UserQuestionsResponse>,
-    #[serde(rename = "haltRequest", alias = "halt_request", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "haltRequest",
+        alias = "halt_request",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub halt_request: Option<bool>,
-    #[serde(rename = "automatedTrigger", alias = "automated_trigger", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "automatedTrigger",
+        alias = "automated_trigger",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub automated_trigger: Option<String>,
 }
 
@@ -981,7 +1134,11 @@ pub struct QuestionsResponseInner {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserQuestionAnswer {
     pub unanswered: bool,
-    #[serde(rename = "multipleChoiceAnswer", alias = "multiple_choice_answer", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "multipleChoiceAnswer",
+        alias = "multiple_choice_answer",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub multiple_choice_answer: Option<MultipleChoiceAnswer>,
 }
 
@@ -989,7 +1146,11 @@ pub struct UserQuestionAnswer {
 pub struct MultipleChoiceAnswer {
     #[serde(rename = "selectedChoiceIndices", alias = "selected_choice_indices")]
     pub selected_choice_indices: Vec<u32>,
-    #[serde(rename = "freeformResponse", alias = "freeform_response", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "freeformResponse",
+        alias = "freeform_response",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub freeform_response: Option<String>,
 }
 
@@ -1022,7 +1183,8 @@ impl Media {
             Some("wav") => "audio/wav",
             Some("mp4") => "video/mp4",
             _ => "application/octet-stream",
-        }.to_string();
+        }
+        .to_string();
 
         Ok(Self {
             mime_type,
@@ -1188,25 +1350,28 @@ impl ChatResponse {
     pub fn chunks(&self) -> BoxStream<'static, StreamChunk> {
         let state = self.state.clone();
         let pos = 0;
-        Box::pin(futures_util::stream::unfold((state, pos), |(state, pos)| async move {
-            let mut s = state.lock().await;
-            if pos < s.buffered.len() {
-                let chunk = s.buffered[pos].clone();
-                drop(s);
-                Some((chunk, (state, pos + 1)))
-            } else if s.is_done {
-                None
-            } else {
-                if let Some(chunk) = s.stream.next().await {
-                    s.buffered.push(chunk.clone());
+        Box::pin(futures_util::stream::unfold(
+            (state, pos),
+            |(state, pos)| async move {
+                let mut s = state.lock().await;
+                if pos < s.buffered.len() {
+                    let chunk = s.buffered[pos].clone();
                     drop(s);
                     Some((chunk, (state, pos + 1)))
-                } else {
-                    s.is_done = true;
+                } else if s.is_done {
                     None
+                } else {
+                    if let Some(chunk) = s.stream.next().await {
+                        s.buffered.push(chunk.clone());
+                        drop(s);
+                        Some((chunk, (state, pos + 1)))
+                    } else {
+                        s.is_done = true;
+                        None
+                    }
                 }
-            }
-        }))
+            },
+        ))
     }
 
     pub async fn usage_metadata(&self) -> Option<UsageMetadata> {

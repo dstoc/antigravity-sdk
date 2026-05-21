@@ -18,10 +18,10 @@
 //! task, in this case, researching the examples directory to generate a lesson
 //! plan.
 
-use std::sync::{Arc, Mutex};
 use antigravity_sdk::hooks::HookResult;
 use antigravity_sdk::types::{CapabilitiesConfig, ToolCall, ToolResult};
 use antigravity_sdk::{Agent, IntoContent, LocalConnectionStrategy};
+use std::sync::{Arc, Mutex};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

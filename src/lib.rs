@@ -12,26 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub mod proto;
-pub mod types;
-pub mod policy;
+pub mod agent;
 pub mod connection;
 pub mod conversation;
-pub mod agent;
 pub mod hooks;
+pub mod policy;
+pub mod proto;
+pub mod types;
 
 pub use agent::Agent;
-pub use hooks::{
-    HookRunner, HookResult, SessionContext, TurnContext, OperationContext,
-    OnSessionStart, OnSessionEnd, PreTurn, PostTurn, PreToolCallDecide,
-    PostToolCall, OnToolError, OnInteraction, OnCompaction,
-};
-pub use connection::{LocalConnectionStrategy, CustomTool, ToolContext, ToolFuture};
+pub use connection::{CustomTool, LocalConnectionStrategy, ToolContext, ToolFuture};
 pub use conversation::Conversation;
-pub use policy::{Policy, allow, deny, ask_user, allow_all, deny_all, confirm_run_command, workspace_only};
+pub use hooks::{
+    HookResult, HookRunner, OnCompaction, OnInteraction, OnSessionEnd, OnSessionStart, OnToolError,
+    OperationContext, PostToolCall, PostTurn, PreToolCallDecide, PreTurn, SessionContext,
+    TurnContext,
+};
+pub use policy::{
+    Policy, allow, allow_all, ask_user, confirm_run_command, deny, deny_all, workspace_only,
+};
 pub use types::{
-    BuiltinTools, CapabilitiesConfig, Content, ContentPrimitive, GeminiConfig,
-    IntoContent, Step, StepSource, StepState, StepStatus, StepType, ToolCall,
-    UsageMetadata, ChatResponse, StreamChunk,
-    AskQuestionOption, AskQuestionEntry, AskQuestionInteractionSpec,
+    AskQuestionEntry, AskQuestionInteractionSpec, AskQuestionOption, BuiltinTools,
+    CapabilitiesConfig, ChatResponse, Content, ContentPrimitive, GeminiConfig, IntoContent, Step,
+    StepSource, StepState, StepStatus, StepType, StreamChunk, ToolCall, UsageMetadata,
 };

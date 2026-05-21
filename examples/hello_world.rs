@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use antigravity_sdk::{Agent, LocalConnectionStrategy, IntoContent};
+use antigravity_sdk::{Agent, IntoContent, LocalConnectionStrategy};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

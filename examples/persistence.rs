@@ -17,8 +17,8 @@
 //! This example shows how to persist conversation state across process restarts
 //! using a conversation ID and a storage directory.
 
-use tempfile::tempdir;
 use antigravity_sdk::{Agent, IntoContent, LocalConnectionStrategy};
+use tempfile::tempdir;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -50,8 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // By providing the exact same `save_dir` and the prior `conversation_id`,
     // the new agent instance automatically restores the previous conversation
     // history and context.
-    let config2 = LocalConnectionStrategy::new(save_dir)
-        .conversation_id(conversation_id);
+    let config2 = LocalConnectionStrategy::new(save_dir).conversation_id(conversation_id);
     let my_agent2 = Agent::start(config2).await?;
 
     let prompt2 = "What is my favorite color?";

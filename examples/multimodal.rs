@@ -18,11 +18,9 @@
 //! - Multimodal input: Passing images and documents to the agent.
 //! - Multimodal output: Enabling the agent to generate images.
 
-use std::path::Path;
-use antigravity_sdk::types::{
-    BuiltinTools, CapabilitiesConfig, ContentPrimitive, Media,
-};
+use antigravity_sdk::types::{BuiltinTools, CapabilitiesConfig, ContentPrimitive, Media};
 use antigravity_sdk::{Agent, LocalConnectionStrategy};
+use std::path::Path;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -73,7 +71,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
          Please provide the file path to the generated image."
             .to_string(),
     )];
-    println!("  User: Generate an image of a futuristic city, name it 'future_city'. Please provide the file path to the generated image.");
+    println!(
+        "  User: Generate an image of a futuristic city, name it 'future_city'. Please provide the file path to the generated image."
+    );
     let response = gen_agent.chat(Some(prompt)).await?;
     println!("  Agent: {}\n", response.text().await);
 

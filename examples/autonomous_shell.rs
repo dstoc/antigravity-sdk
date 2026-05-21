@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use antigravity_sdk::{Agent, LocalConnectionStrategy, IntoContent};
 use antigravity_sdk::policy;
+use antigravity_sdk::{Agent, IntoContent, LocalConnectionStrategy};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -22,8 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // allow_all() grants the agent full access to all tools, including
     // run_command (shell execution). This overrides the default
     // confirm_run_command() policy.
-    let config = LocalConnectionStrategy::default()
-        .policies(vec![policy::allow_all()]);
+    let config = LocalConnectionStrategy::default().policies(vec![policy::allow_all()]);
 
     let agent = Agent::start(config).await?;
 

@@ -31,7 +31,8 @@ fn block_rm_predicate(args: &serde_json::Value) -> bool {
 
 fn critical_file_predicate(args: &serde_json::Value) -> bool {
     // Predicate to detect critical file deletion attempts.
-    let path = args.get("path")
+    let path = args
+        .get("path")
         .or_else(|| args.get("file_path"))
         .or_else(|| args.get("TargetFile"))
         .and_then(|v| v.as_str())

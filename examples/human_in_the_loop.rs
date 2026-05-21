@@ -13,8 +13,10 @@
 // limitations under the License.
 
 use antigravity_sdk::{
-    Agent, LocalConnectionStrategy, IntoContent,
-    types::{UserQuestionsResponse, QuestionsResponseInner, UserQuestionAnswer, MultipleChoiceAnswer},
+    Agent, IntoContent, LocalConnectionStrategy,
+    types::{
+        MultipleChoiceAnswer, QuestionsResponseInner, UserQuestionAnswer, UserQuestionsResponse,
+    },
 };
 
 #[tokio::main]
@@ -25,43 +27,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = LocalConnectionStrategy::default()
         .system_instructions(antigravity_sdk::types::SystemInstructions::custom(
             "When you need clarification or more information from the user to \
-             fulfill a request, you should use the `ask_question` tool to prompt them."
+             fulfill a request, you should use the `ask_question` tool to prompt them.",
         ))
-        .register_on_interaction(|_context, spec: antigravity_sdk::types::AskQuestionInteractionSpec| async move {
-            println!("\n🙋 [Human-in-the-Loop] The agent requires clarification:");
-            let mut answers = Vec::new();
+        .register_on_interaction(
+            |_context, spec: antigravity_sdk::types::AskQuestionInteractionSpec| async move {
+                println!("\n🙋 [Human-in-the-Loop] The agent requires clarification:");
+                let mut answers = Vec::new();
 
-            for (i, question_entry) in spec.questions.iter().enumerate() {
-                println!("  Question {}: {}", i + 1, question_entry.question);
-                if !question_entry.options.is_empty() {
-                    for option in &question_entry.options {
-                        println!("    [{}] {}", option.id, option.text);
+                for (i, question_entry) in spec.questions.iter().enumerate() {
+                    println!("  Question {}: {}", i + 1, question_entry.question);
+                    if !question_entry.options.is_empty() {
+                        for option in &question_entry.options {
+                            println!("    [{}] {}", option.id, option.text);
+                        }
                     }
+                    print!("  Your answer: ");
+                    use std::io::Write;
+                    std::io::stdout().flush().unwrap();
+
+                    let mut input = String::new();
+                    std::io::stdin().read_line(&mut input).unwrap();
+                    let trimmed = input.trim().to_string();
+
+                    let answer = UserQuestionAnswer {
+                        unanswered: false,
+                        multiple_choice_answer: Some(MultipleChoiceAnswer {
+                            selected_choice_indices: Vec::new(),
+                            freeform_response: Some(trimmed),
+                        }),
+                    };
+                    answers.push(answer);
                 }
-                print!("  Your answer: ");
-                use std::io::Write;
-                std::io::stdout().flush().unwrap();
 
-                let mut input = String::new();
-                std::io::stdin().read_line(&mut input).unwrap();
-                let trimmed = input.trim().to_string();
-
-                let answer = UserQuestionAnswer {
-                    unanswered: false,
-                    multiple_choice_answer: Some(MultipleChoiceAnswer {
-                        selected_choice_indices: Vec::new(),
-                        freeform_response: Some(trimmed),
-                    }),
-                };
-                answers.push(answer);
-            }
-
-            Ok(Some(UserQuestionsResponse {
-                trajectory_id: String::new(),
-                step_index: 0,
-                response: QuestionsResponseInner { answers },
-            }))
-        });
+                Ok(Some(UserQuestionsResponse {
+                    trajectory_id: String::new(),
+                    step_index: 0,
+                    response: QuestionsResponseInner { answers },
+                }))
+            },
+        );
 
     let my_agent = Agent::start(config).await?;
 

@@ -14,8 +14,8 @@
 
 //! Example demonstrating streaming responses and thoughts in Google Antigravity SDK.
 
-use futures_util::StreamExt;
 use antigravity_sdk::{Agent, IntoContent, LocalConnectionStrategy};
+use futures_util::StreamExt;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -14,9 +14,9 @@
 
 //! Declaring and enforcing safety policies for tool execution.
 
+use crate::types::{BuiltinTools, ToolCall};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use crate::types::{ToolCall, BuiltinTools};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Decision {
@@ -153,10 +153,16 @@ pub fn deny_all() -> Policy {
     Policy::new("*", Decision::Deny, "deny_all")
 }
 
-pub fn confirm_run_command(handler: Option<Arc<dyn Fn(&ToolCall) -> bool + Send + Sync>>) -> Vec<Policy> {
+pub fn confirm_run_command(
+    handler: Option<Arc<dyn Fn(&ToolCall) -> bool + Send + Sync>>,
+) -> Vec<Policy> {
     let mut policies = Vec::new();
     if let Some(h) = handler {
-        let mut p = Policy::new(BuiltinTools::RunCommand.as_str(), Decision::AskUser, "confirm_run_command");
+        let mut p = Policy::new(
+            BuiltinTools::RunCommand.as_str(),
+            Decision::AskUser,
+            "confirm_run_command",
+        );
         p.ask_user = Some(h);
         policies.push(p);
     } else {
@@ -244,7 +250,13 @@ pub fn workspace_only(workspaces: Vec<String>) -> Vec<Policy> {
         let mut policy = Policy::new(&tool, Decision::Deny, "workspace_only");
         policy.when = Some(Arc::new(move |args| {
             let mut path_opt = None;
-            for key in &["canonical_path", "path", "file_path", "TargetFile", "directory_path"] {
+            for key in &[
+                "canonical_path",
+                "path",
+                "file_path",
+                "TargetFile",
+                "directory_path",
+            ] {
                 if let Some(val) = args.get(*key) {
                     if let Some(s) = val.as_str() {
                         path_opt = Some(s.to_string());
@@ -269,7 +281,11 @@ pub fn workspace_only(workspaces: Vec<String>) -> Vec<Policy> {
 }
 
 impl crate::hooks::PreToolCallDecide for PolicyEngine {
-    fn run<'a>(&'a self, _context: &'a crate::hooks::OperationContext, tool_call: &'a ToolCall) -> crate::hooks::HookFuture<'a, Result<crate::hooks::HookResult, String>> {
+    fn run<'a>(
+        &'a self,
+        _context: &'a crate::hooks::OperationContext,
+        tool_call: &'a ToolCall,
+    ) -> crate::hooks::HookFuture<'a, Result<crate::hooks::HookResult, String>> {
         let res = match self.evaluate(tool_call) {
             Ok(true) => Ok(crate::hooks::HookResult::allow()),
             Ok(false) => Ok(crate::hooks::HookResult::deny("")),
@@ -293,10 +309,7 @@ mod tests {
 
     #[test]
     fn test_policy_engine() {
-        let policies = vec![
-            deny("run_command"),
-            allow_all(),
-        ];
+        let policies = vec![deny("run_command"), allow_all()];
         let engine = PolicyEngine::new(policies);
 
         let call_run = ToolCall {

@@ -18,20 +18,21 @@
 //! They react to external events (such as timers, file changes, or webhooks) and
 //! push automated trigger notifications back to the agent connection.
 
-use std::sync::{Arc, Mutex};
 use antigravity_sdk::{Agent, IntoContent, LocalConnectionStrategy};
+use std::sync::{Arc, Mutex};
 
 async fn run_periodic_trigger_example() -> Result<(), Box<dyn std::error::Error>> {
     println!("  === Support Queue Trigger Demo ===");
     println!("  Creating agent and starting session...");
 
-    let config = LocalConnectionStrategy::default()
-        .system_instructions(antigravity_sdk::types::SystemInstructions::custom(
+    let config = LocalConnectionStrategy::default().system_instructions(
+        antigravity_sdk::types::SystemInstructions::custom(
             "You are a system operations and support assistant. You monitor a \
              queue of incoming support tickets. When the user asks for updates, \
              you must check and report any tickets that came in from the \
-             background system alert trigger."
-        ));
+             background system alert trigger.",
+        ),
+    );
 
     let my_agent = Agent::start(config).await?;
     let conversation = my_agent.conversation().clone();
@@ -80,13 +81,14 @@ async fn run_custom_trigger_example() -> Result<(), Box<dyn std::error::Error>> 
     println!("  === Custom Webhook Trigger Demo ===");
     println!("  Creating agent and starting session...");
 
-    let config = LocalConnectionStrategy::default()
-        .system_instructions(antigravity_sdk::types::SystemInstructions::custom(
+    let config = LocalConnectionStrategy::default().system_instructions(
+        antigravity_sdk::types::SystemInstructions::custom(
             "You are a CI/CD operations assistant. You monitor pipeline status \
              via an external webhook trigger. When the user asks for updates, \
              you must check and report any failures that came in from the \
-             webhook alert trigger."
-        ));
+             webhook alert trigger.",
+        ),
+    );
 
     let my_agent = Agent::start(config).await?;
     let conversation = my_agent.conversation().clone();
@@ -115,7 +117,9 @@ async fn run_custom_trigger_example() -> Result<(), Box<dyn std::error::Error>> 
         }
     });
 
-    println!("\n  Sleeping for 5 seconds. A pipeline failure will be simulated in the background...");
+    println!(
+        "\n  Sleeping for 5 seconds. A pipeline failure will be simulated in the background..."
+    );
     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
     // Turn 2: Ask for updates.

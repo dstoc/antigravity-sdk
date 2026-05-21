@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use antigravity_sdk::{Agent, LocalConnectionStrategy, IntoContent};
+use antigravity_sdk::{Agent, IntoContent, LocalConnectionStrategy};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -25,8 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Custom App Data Dir: {}\n", custom_app_data_str);
 
     // Initialize the agent config with our custom app_data_dir override
-    let config = LocalConnectionStrategy::default()
-        .app_data_dir(custom_app_data_str);
+    let config = LocalConnectionStrategy::default().app_data_dir(custom_app_data_str);
 
     // Start the agent and ask it to create an artifact
     let my_agent = Agent::start(config).await?;

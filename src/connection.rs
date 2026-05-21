@@ -14,29 +14,27 @@
 
 //! Wrapping and execution of the `localharness` binary and WebSocket transport.
 
-use std::collections::{HashSet, VecDeque, HashMap};
+use futures_util::{SinkExt, StreamExt};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::{Child, Command};
-use tokio::sync::{mpsc, Mutex, Notify};
-use futures_util::{SinkExt, StreamExt};
+use tokio::sync::{Mutex, Notify, mpsc};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 
-use crate::types::{
-    BuiltinTools, CapabilitiesConfig, Content, ContentPrimitive, GeminiConfig,
-    HarnessConfig, HarnessSideTools, InputEvent, OutputEvent,
-    Step, StepSource, StepState, StepStatus, StepTarget, StepType, Tool,
-    ToolCall, ToolConfirmation, TrajectoryState,
-    UserQuestionsResponse, QuestionsResponseInner,
-    FindToolConfig, RunCommandToolConfig, SubagentsConfig, UserQuestionsConfig,
-    FileEditToolConfig, ViewFileToolConfig, WriteToFileToolConfig,
-    GrepSearchToolConfig, ListDirToolConfig, GenerateImageToolConfig, Workspace,
-    FilesystemWorkspace, InitializeConversationEvent,
-};
 use crate::policy::PolicyEngine;
+use crate::types::{
+    BuiltinTools, CapabilitiesConfig, Content, ContentPrimitive, FileEditToolConfig,
+    FilesystemWorkspace, FindToolConfig, GeminiConfig, GenerateImageToolConfig,
+    GrepSearchToolConfig, HarnessConfig, HarnessSideTools, InitializeConversationEvent, InputEvent,
+    ListDirToolConfig, OutputEvent, QuestionsResponseInner, RunCommandToolConfig, Step, StepSource,
+    StepState, StepStatus, StepTarget, StepType, SubagentsConfig, Tool, ToolCall, ToolConfirmation,
+    TrajectoryState, UserQuestionsConfig, UserQuestionsResponse, ViewFileToolConfig, Workspace,
+    WriteToFileToolConfig,
+};
 
 // =============================================================================
 // Discovery of localharness binary
@@ -56,8 +54,19 @@ pub fn find_localharness() -> Result<PathBuf, String> {
             if let Ok(entries) = std::fs::read_dir(&venv_lib) {
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if path.is_dir() && path.file_name().unwrap().to_string_lossy().starts_with("python") {
-                        let candidate = path.join("site-packages").join("google").join("antigravity").join("bin").join("localharness");
+                    if path.is_dir()
+                        && path
+                            .file_name()
+                            .unwrap()
+                            .to_string_lossy()
+                            .starts_with("python")
+                    {
+                        let candidate = path
+                            .join("site-packages")
+                            .join("google")
+                            .join("antigravity")
+                            .join("bin")
+                            .join("localharness");
                         if candidate.exists() {
                             return Ok(candidate);
                         }
@@ -88,7 +97,9 @@ pub fn normalize_wire_path(path: &str) -> String {
     if path.starts_with("file://") {
         if let Ok(parsed) = url::Url::parse(path) {
             if parsed.scheme() == "file" {
-                if let Ok(decoded) = percent_encoding::percent_decode_str(parsed.path()).decode_utf8() {
+                if let Ok(decoded) =
+                    percent_encoding::percent_decode_str(parsed.path()).decode_utf8()
+                {
                     return decoded.into_owned();
                 }
             }
@@ -101,7 +112,8 @@ pub fn normalize_wire_path(path: &str) -> String {
 // Tool Context and Custom Tool Trait
 // =============================================================================
 
-pub type ToolFuture = std::pin::Pin<Box<dyn std::future::Future<Output = Result<serde_json::Value, String>> + Send>>;
+pub type ToolFuture =
+    std::pin::Pin<Box<dyn std::future::Future<Output = Result<serde_json::Value, String>> + Send>>;
 
 pub trait CustomTool: Send + Sync {
     fn name(&self) -> &str;
@@ -137,7 +149,9 @@ impl ToolContext {
             halt_request: None,
             automated_trigger: Some(message.to_string()),
         };
-        self.sender.send(event).map_err(|e| format!("Failed to send trigger: {}", e))
+        self.sender
+            .send(event)
+            .map_err(|e| format!("Failed to send trigger: {}", e))
     }
 
     pub async fn get_state(&self, key: &str) -> Option<serde_json::Value> {
@@ -158,7 +172,16 @@ impl ToolContext {
 pub struct Connection {
     child: Mutex<Option<Child>>,
     _stdin: Mutex<Option<tokio::process::ChildStdin>>,
-    ws_sender: Mutex<Option<futures_util::stream::SplitSink<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>, Message>>>,
+    ws_sender: Mutex<
+        Option<
+            futures_util::stream::SplitSink<
+                tokio_tungstenite::WebSocketStream<
+                    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+                >,
+                Message,
+            >,
+        >,
+    >,
     pub step_tx: mpsc::UnboundedSender<Step>,
     step_rx: Mutex<mpsc::UnboundedReceiver<Step>>,
     is_idle: Arc<std::sync::Mutex<bool>>,
@@ -169,7 +192,8 @@ pub struct Connection {
     active_subagent_ids: Arc<std::sync::Mutex<HashSet<String>>>,
     pub hook_runner: Arc<crate::hooks::HookRunner>,
     pub current_turn_context: Arc<std::sync::Mutex<Option<crate::hooks::TurnContext>>>,
-    pub pending_builtin_tool_calls: Arc<std::sync::Mutex<HashMap<(String, u32), (ToolCall, crate::hooks::OperationContext)>>>,
+    pub pending_builtin_tool_calls:
+        Arc<std::sync::Mutex<HashMap<(String, u32), (ToolCall, crate::hooks::OperationContext)>>>,
     pub subagent_responses: Arc<std::sync::Mutex<HashMap<String, String>>>,
 }
 
@@ -271,7 +295,9 @@ impl Connection {
         let json = serde_json::to_string(&input_event).map_err(|e| e.to_string())?;
         let mut sender = self.ws_sender.lock().await;
         if let Some(ref mut ws) = *sender {
-            ws.send(Message::Text(json)).await.map_err(|e| e.to_string())?;
+            ws.send(Message::Text(json))
+                .await
+                .map_err(|e| e.to_string())?;
         } else {
             return Err("WebSocket connection is closed".to_string());
         }
@@ -346,7 +372,9 @@ impl Connection {
                     let hook_runner_clone = self.hook_runner.clone();
                     let response_content = step.content.clone();
                     tokio::spawn(async move {
-                        let _ = hook_runner_clone.dispatch_post_turn(&turn_ctx, &response_content).await;
+                        let _ = hook_runner_clone
+                            .dispatch_post_turn(&turn_ctx, &response_content)
+                            .await;
                     });
                 }
             }
@@ -368,7 +396,9 @@ impl Connection {
         let json = serde_json::to_string(&event).map_err(|e| e.to_string())?;
         let mut sender = self.ws_sender.lock().await;
         if let Some(ref mut ws) = *sender {
-            ws.send(Message::Text(json)).await.map_err(|e| e.to_string())?;
+            ws.send(Message::Text(json))
+                .await
+                .map_err(|e| e.to_string())?;
         }
         Ok(())
     }
@@ -386,7 +416,9 @@ impl Connection {
         let json = serde_json::to_string(&event).map_err(|e| e.to_string())?;
         let mut sender = self.ws_sender.lock().await;
         if let Some(ref mut ws) = *sender {
-            ws.send(Message::Text(json)).await.map_err(|e| e.to_string())?;
+            ws.send(Message::Text(json))
+                .await
+                .map_err(|e| e.to_string())?;
         }
         Ok(())
     }
@@ -456,12 +488,18 @@ impl LocalConnectionStrategy {
         }
     }
 
-    pub fn register_on_session_start<H: crate::hooks::OnSessionStart + 'static>(mut self, hook: H) -> Self {
+    pub fn register_on_session_start<H: crate::hooks::OnSessionStart + 'static>(
+        mut self,
+        hook: H,
+    ) -> Self {
         self.hook_runner.register_on_session_start(hook);
         self
     }
 
-    pub fn register_on_session_end<H: crate::hooks::OnSessionEnd + 'static>(mut self, hook: H) -> Self {
+    pub fn register_on_session_end<H: crate::hooks::OnSessionEnd + 'static>(
+        mut self,
+        hook: H,
+    ) -> Self {
         self.hook_runner.register_on_session_end(hook);
         self
     }
@@ -476,27 +514,42 @@ impl LocalConnectionStrategy {
         self
     }
 
-    pub fn register_pre_tool_call_decide<H: crate::hooks::PreToolCallDecide + 'static>(mut self, hook: H) -> Self {
+    pub fn register_pre_tool_call_decide<H: crate::hooks::PreToolCallDecide + 'static>(
+        mut self,
+        hook: H,
+    ) -> Self {
         self.hook_runner.register_pre_tool_call_decide(hook);
         self
     }
 
-    pub fn register_post_tool_call<H: crate::hooks::PostToolCall + 'static>(mut self, hook: H) -> Self {
+    pub fn register_post_tool_call<H: crate::hooks::PostToolCall + 'static>(
+        mut self,
+        hook: H,
+    ) -> Self {
         self.hook_runner.register_post_tool_call(hook);
         self
     }
 
-    pub fn register_on_tool_error<H: crate::hooks::OnToolError + 'static>(mut self, hook: H) -> Self {
+    pub fn register_on_tool_error<H: crate::hooks::OnToolError + 'static>(
+        mut self,
+        hook: H,
+    ) -> Self {
         self.hook_runner.register_on_tool_error(hook);
         self
     }
 
-    pub fn register_on_interaction<H: crate::hooks::OnInteraction + 'static>(mut self, hook: H) -> Self {
+    pub fn register_on_interaction<H: crate::hooks::OnInteraction + 'static>(
+        mut self,
+        hook: H,
+    ) -> Self {
         self.hook_runner.register_on_interaction(hook);
         self
     }
 
-    pub fn register_on_compaction<H: crate::hooks::OnCompaction + 'static>(mut self, hook: H) -> Self {
+    pub fn register_on_compaction<H: crate::hooks::OnCompaction + 'static>(
+        mut self,
+        hook: H,
+    ) -> Self {
         self.hook_runner.register_on_compaction(hook);
         self
     }
@@ -531,7 +584,10 @@ impl LocalConnectionStrategy {
         self
     }
 
-    pub fn system_instructions(mut self, system_instructions: crate::types::SystemInstructions) -> Self {
+    pub fn system_instructions(
+        mut self,
+        system_instructions: crate::types::SystemInstructions,
+    ) -> Self {
         self.system_instructions = Some(system_instructions);
         self
     }
@@ -547,7 +603,11 @@ impl Default for LocalConnectionStrategy {
         let duration = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default();
-        let temp = std::env::temp_dir().join(format!("antigravity_{}_{}", std::process::id(), duration.as_nanos()));
+        let temp = std::env::temp_dir().join(format!(
+            "antigravity_{}_{}",
+            std::process::id(),
+            duration.as_nanos()
+        ));
         let _ = std::fs::create_dir_all(&temp);
         Self::new(temp.to_string_lossy().to_string())
     }
@@ -562,7 +622,9 @@ impl LocalConnectionStrategy {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn localharness: {}", e))?;
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| format!("Failed to spawn localharness: {}", e))?;
 
         // LE 4-byte handshake
         let mut stdin = child.stdin.take().ok_or("Failed to open stdin")?;
@@ -572,15 +634,27 @@ impl LocalConnectionStrategy {
         let input_bytes = crate::proto::encode_input_config(&self.save_dir);
         let len_bytes = (input_bytes.len() as u32).to_le_bytes();
 
-        stdin.write_all(&len_bytes).await.map_err(|e| e.to_string())?;
-        stdin.write_all(&input_bytes).await.map_err(|e| e.to_string())?;
+        stdin
+            .write_all(&len_bytes)
+            .await
+            .map_err(|e| e.to_string())?;
+        stdin
+            .write_all(&input_bytes)
+            .await
+            .map_err(|e| e.to_string())?;
         stdin.flush().await.map_err(|e| e.to_string())?;
 
         let mut len_buf = [0u8; 4];
-        stdout.read_exact(&mut len_buf).await.map_err(|e| format!("Failed to read output length: {}", e))?;
+        stdout
+            .read_exact(&mut len_buf)
+            .await
+            .map_err(|e| format!("Failed to read output length: {}", e))?;
         let out_len = u32::from_le_bytes(len_buf) as usize;
         let mut out_bytes = vec![0u8; out_len];
-        stdout.read_exact(&mut out_bytes).await.map_err(|e| format!("Failed to read output config: {}", e))?;
+        stdout
+            .read_exact(&mut out_bytes)
+            .await
+            .map_err(|e| format!("Failed to read output config: {}", e))?;
 
         let output_config = crate::proto::decode_output_config(&out_bytes)?;
         log::info!("Discovered WebSocket server at port {}", output_config.port);
@@ -607,7 +681,7 @@ impl LocalConnectionStrategy {
         request.headers_mut().insert(
             "x-goog-api-key",
             tokio_tungstenite::tungstenite::http::HeaderValue::from_str(&output_config.api_key)
-                .map_err(|e| e.to_string())?
+                .map_err(|e| e.to_string())?,
         );
 
         let mut ws = None;
@@ -631,30 +705,42 @@ impl LocalConnectionStrategy {
         let (mut ws_write, mut ws_read) = ws.split();
 
         // 1. Build initial conversation event config
-        let tool_protos = self.custom_tools.iter().map(|ct| Tool {
-            name: ct.name().to_string(),
-            description: ct.description().to_string(),
-            parameters_json_schema: serde_json::to_string(&ct.parameters_schema()).unwrap(),
-            response_json_schema: None,
-        }).collect();
+        let tool_protos = self
+            .custom_tools
+            .iter()
+            .map(|ct| Tool {
+                name: ct.name().to_string(),
+                description: ct.description().to_string(),
+                parameters_json_schema: serde_json::to_string(&ct.parameters_schema()).unwrap(),
+                response_json_schema: None,
+            })
+            .collect();
 
         let all_tools = BuiltinTools::all_tools();
         let active_tools: HashSet<_> = if let Some(ref enabled) = self.capabilities.enabled_tools {
             enabled.iter().cloned().collect()
         } else if let Some(ref disabled) = self.capabilities.disabled_tools {
             let disabled_set: HashSet<_> = disabled.iter().cloned().collect();
-            all_tools.into_iter().filter(|t| !disabled_set.contains(t)).collect()
+            all_tools
+                .into_iter()
+                .filter(|t| !disabled_set.contains(t))
+                .collect()
         } else {
             all_tools.into_iter().collect()
         };
 
-        let workspaces_pb = self.workspaces.iter().map(|w| Workspace {
-            filesystem_workspace: FilesystemWorkspace {
-                directory: normalize_wire_path(w),
-            }
-        }).collect();
+        let workspaces_pb = self
+            .workspaces
+            .iter()
+            .map(|w| Workspace {
+                filesystem_workspace: FilesystemWorkspace {
+                    directory: normalize_wire_path(w),
+                },
+            })
+            .collect();
 
-        let subagents_enabled = self.capabilities.enable_subagents && active_tools.contains(&BuiltinTools::StartSubagent);
+        let subagents_enabled = self.capabilities.enable_subagents
+            && active_tools.contains(&BuiltinTools::StartSubagent);
 
         let harness_config = HarnessConfig {
             tools: tool_protos,
@@ -664,22 +750,44 @@ impl LocalConnectionStrategy {
             workspaces: workspaces_pb,
             skills_paths: self.skills_paths.clone(),
             harness_side_tools: HarnessSideTools {
-                find: FindToolConfig { enabled: active_tools.contains(&BuiltinTools::FindFile) },
-                run_command: RunCommandToolConfig { enabled: active_tools.contains(&BuiltinTools::RunCommand) },
-                subagents: SubagentsConfig { enabled: subagents_enabled },
-                user_questions: UserQuestionsConfig { enabled: active_tools.contains(&BuiltinTools::AskQuestion) },
-                file_edit: FileEditToolConfig { enabled: active_tools.contains(&BuiltinTools::EditFile) },
-                view_file: ViewFileToolConfig { enabled: active_tools.contains(&BuiltinTools::ViewFile) },
-                write_to_file: WriteToFileToolConfig { enabled: active_tools.contains(&BuiltinTools::CreateFile) },
-                grep_search: GrepSearchToolConfig { enabled: active_tools.contains(&BuiltinTools::SearchDir) },
-                list_dir: ListDirToolConfig { enabled: active_tools.contains(&BuiltinTools::ListDir) },
+                find: FindToolConfig {
+                    enabled: active_tools.contains(&BuiltinTools::FindFile),
+                },
+                run_command: RunCommandToolConfig {
+                    enabled: active_tools.contains(&BuiltinTools::RunCommand),
+                },
+                subagents: SubagentsConfig {
+                    enabled: subagents_enabled,
+                },
+                user_questions: UserQuestionsConfig {
+                    enabled: active_tools.contains(&BuiltinTools::AskQuestion),
+                },
+                file_edit: FileEditToolConfig {
+                    enabled: active_tools.contains(&BuiltinTools::EditFile),
+                },
+                view_file: ViewFileToolConfig {
+                    enabled: active_tools.contains(&BuiltinTools::ViewFile),
+                },
+                write_to_file: WriteToFileToolConfig {
+                    enabled: active_tools.contains(&BuiltinTools::CreateFile),
+                },
+                grep_search: GrepSearchToolConfig {
+                    enabled: active_tools.contains(&BuiltinTools::SearchDir),
+                },
+                list_dir: ListDirToolConfig {
+                    enabled: active_tools.contains(&BuiltinTools::ListDir),
+                },
                 generate_image: GenerateImageToolConfig {
                     enabled: active_tools.contains(&BuiltinTools::GenerateImage),
                     model_name: Some(self.capabilities.image_model.clone()),
                 },
             },
             compaction_threshold: self.capabilities.compaction_threshold.unwrap_or(0),
-            finish_tool_schema_json: self.capabilities.finish_tool_schema_json.clone().unwrap_or_default(),
+            finish_tool_schema_json: self
+                .capabilities
+                .finish_tool_schema_json
+                .clone()
+                .unwrap_or_default(),
             app_data_dir: self.app_data_dir.clone(),
         };
 
@@ -688,7 +796,10 @@ impl LocalConnectionStrategy {
         };
 
         let init_json = serde_json::to_string(&init_event).unwrap();
-        ws_write.send(Message::Text(init_json)).await.map_err(|e| e.to_string())?;
+        ws_write
+            .send(Message::Text(init_json))
+            .await
+            .map_err(|e| e.to_string())?;
 
         // Setup channel queues for steps
         let (step_tx, step_rx) = mpsc::unbounded_channel();
@@ -810,7 +921,9 @@ impl LocalConnectionStrategy {
                 let turn_ctx = {
                     let guard = connection_reader.current_turn_context.lock().unwrap();
                     guard.clone().unwrap_or_else(|| {
-                        crate::hooks::TurnContext::new(&connection_reader.hook_runner.session_context)
+                        crate::hooks::TurnContext::new(
+                            &connection_reader.hook_runner.session_context,
+                        )
                     })
                 };
 
@@ -878,7 +991,9 @@ impl LocalConnectionStrategy {
                     // Extract tool result or details
                     if step.r#type == StepType::Finish {
                         if let Some(ref finish_val) = step_update.finish {
-                            if let Some(out_str) = finish_val.get("output_string").and_then(|v| v.as_str()) {
+                            if let Some(out_str) =
+                                finish_val.get("output_string").and_then(|v| v.as_str())
+                            {
                                 if let Ok(parsed_out) = serde_json::from_str(out_str) {
                                     step.structured_output = Some(parsed_out);
                                 }
@@ -916,7 +1031,8 @@ impl LocalConnectionStrategy {
                             "finish" => &step_update.finish,
                             _ => &None,
                         } {
-                            active_tool_pair = Some((tool_enum.as_str().to_string(), sub_msg.clone()));
+                            active_tool_pair =
+                                Some((tool_enum.as_str().to_string(), sub_msg.clone()));
                             break;
                         }
                     }
@@ -927,7 +1043,10 @@ impl LocalConnectionStrategy {
                             for path_key in &["path", "file_path", "TargetFile", "directory_path"] {
                                 if let Some(val) = obj.get(*path_key).and_then(|v| v.as_str()) {
                                     let normalized = normalize_wire_path(val);
-                                    obj.insert(path_key.to_string(), serde_json::Value::String(normalized.clone()));
+                                    obj.insert(
+                                        path_key.to_string(),
+                                        serde_json::Value::String(normalized.clone()),
+                                    );
                                     canonical_path = Some(normalized);
                                 }
                             }
@@ -949,7 +1068,8 @@ impl LocalConnectionStrategy {
                     let step_key = (traj_id.clone(), step_idx);
                     if step_update.state == StepState::Done {
                         let popped = {
-                            let mut guard = connection_reader.pending_builtin_tool_calls.lock().unwrap();
+                            let mut guard =
+                                connection_reader.pending_builtin_tool_calls.lock().unwrap();
                             guard.remove(&step_key)
                         };
                         if let Some((tc, op_ctx)) = popped {
@@ -958,32 +1078,49 @@ impl LocalConnectionStrategy {
                             let result = crate::types::ToolResult {
                                 name: tc.name.clone(),
                                 id: tc.id.clone(),
-                                result: extracted.unwrap_or_else(|| serde_json::Value::String(step.content.clone())),
+                                result: extracted.unwrap_or_else(|| {
+                                    serde_json::Value::String(step.content.clone())
+                                }),
                                 error: None,
                             };
                             tokio::spawn(async move {
-                                let _ = hook_runner_clone.dispatch_post_tool_call(&op_ctx, &result).await;
+                                let _ = hook_runner_clone
+                                    .dispatch_post_tool_call(&op_ctx, &result)
+                                    .await;
                             });
                         }
                     } else if step_update.state == StepState::Error {
                         let popped = {
-                            let mut guard = connection_reader.pending_builtin_tool_calls.lock().unwrap();
+                            let mut guard =
+                                connection_reader.pending_builtin_tool_calls.lock().unwrap();
                             guard.remove(&step_key)
                         };
                         if let Some((_tc, op_ctx)) = popped {
                             let hook_runner_clone = connection_reader.hook_runner.clone();
-                            let error_msg = step_update.error_message.clone().unwrap_or_else(|| "Built-in tool failed".to_string());
+                            let error_msg = step_update
+                                .error_message
+                                .clone()
+                                .unwrap_or_else(|| "Built-in tool failed".to_string());
                             let error = std::io::Error::new(std::io::ErrorKind::Other, error_msg);
                             tokio::spawn(async move {
-                                let _ = hook_runner_clone.dispatch_on_tool_error(&op_ctx, &error).await;
+                                let _ = hook_runner_clone
+                                    .dispatch_on_tool_error(&op_ctx, &error)
+                                    .await;
                             });
                         }
                     }
 
                     // Track subagent responses
                     let is_subagent_step = !main_id.is_empty() && traj_id != main_id;
-                    if is_subagent_step && step.source == StepSource::Model && !step.content.is_empty() {
-                        connection_reader.subagent_responses.lock().unwrap().insert(traj_id.clone(), step.content.clone());
+                    if is_subagent_step
+                        && step.source == StepSource::Model
+                        && !step.content.is_empty()
+                    {
+                        connection_reader
+                            .subagent_responses
+                            .lock()
+                            .unwrap()
+                            .insert(traj_id.clone(), step.content.clone());
                     }
 
                     // Handle OnCompaction hook
@@ -993,7 +1130,9 @@ impl LocalConnectionStrategy {
                             let turn_ctx_clone = turn_ctx.clone();
                             let comp_val_clone = comp_val.clone();
                             tokio::spawn(async move {
-                                let _ = hook_runner_clone.dispatch_compaction(&turn_ctx_clone, &comp_val_clone).await;
+                                let _ = hook_runner_clone
+                                    .dispatch_compaction(&turn_ctx_clone, &comp_val_clone)
+                                    .await;
                             });
                         }
                     }
@@ -1048,12 +1187,20 @@ impl LocalConnectionStrategy {
                             let mut canonical_path = None;
                             if let Some(obj) = args.as_object_mut() {
                                 if let Some(req_txt) = &step_update.request_text {
-                                    obj.insert("request_text".to_string(), serde_json::Value::String(req_txt.clone()));
+                                    obj.insert(
+                                        "request_text".to_string(),
+                                        serde_json::Value::String(req_txt.clone()),
+                                    );
                                 }
-                                for path_key in &["path", "file_path", "TargetFile", "directory_path"] {
+                                for path_key in
+                                    &["path", "file_path", "TargetFile", "directory_path"]
+                                {
                                     if let Some(val) = obj.get(*path_key).and_then(|v| v.as_str()) {
                                         let normalized = normalize_wire_path(val);
-                                        obj.insert(path_key.to_string(), serde_json::Value::String(normalized.clone()));
+                                        obj.insert(
+                                            path_key.to_string(),
+                                            serde_json::Value::String(normalized.clone()),
+                                        );
                                         canonical_path = Some(normalized);
                                     }
                                 }
@@ -1073,22 +1220,41 @@ impl LocalConnectionStrategy {
                             let step_idx_clone = step_idx;
                             let tc_clone = tc.clone();
                             let turn_ctx_clone = turn_ctx.clone();
-                            let pending_builtin_tool_calls_clone = connection_reader.pending_builtin_tool_calls.clone();
+                            let pending_builtin_tool_calls_clone =
+                                connection_reader.pending_builtin_tool_calls.clone();
 
                             tokio::spawn(async move {
-                                let (hook_res, _, op_ctx) = if tc_clone.name == "pre_request_host_tool_request" {
-                                    (crate::hooks::HookResult::allow(), tc_clone.clone(), crate::hooks::OperationContext::new(&turn_ctx_clone))
+                                let (hook_res, _, op_ctx) = if tc_clone.name
+                                    == "pre_request_host_tool_request"
+                                {
+                                    (
+                                        crate::hooks::HookResult::allow(),
+                                        tc_clone.clone(),
+                                        crate::hooks::OperationContext::new(&turn_ctx_clone),
+                                    )
                                 } else {
-                                    match hook_runner_clone.dispatch_pre_tool_call(&turn_ctx_clone, &tc_clone).await {
+                                    match hook_runner_clone
+                                        .dispatch_pre_tool_call(&turn_ctx_clone, &tc_clone)
+                                        .await
+                                    {
                                         Ok(res) => res,
-                                        Err(err) => (crate::hooks::HookResult::deny(&err), tc_clone.clone(), crate::hooks::OperationContext::new(&turn_ctx_clone)),
+                                        Err(err) => (
+                                            crate::hooks::HookResult::deny(&err),
+                                            tc_clone.clone(),
+                                            crate::hooks::OperationContext::new(&turn_ctx_clone),
+                                        ),
                                     }
                                 };
 
-                                if hook_res.allow && tc_clone.name != "pre_request_host_tool_request" {
+                                if hook_res.allow
+                                    && tc_clone.name != "pre_request_host_tool_request"
+                                {
                                     let pending_key = (traj_id_clone.clone(), step_idx_clone);
                                     let pending_val = (tc_clone, op_ctx);
-                                    pending_builtin_tool_calls_clone.lock().unwrap().insert(pending_key, pending_val);
+                                    pending_builtin_tool_calls_clone
+                                        .lock()
+                                        .unwrap()
+                                        .insert(pending_key, pending_val);
                                 }
 
                                 let conf_response = InputEvent {
@@ -1121,12 +1287,15 @@ impl LocalConnectionStrategy {
                                 for (i, uq) in questions_req.questions.iter().enumerate() {
                                     let mc = &uq.multiple_choice;
                                     {
-                                        let opts = mc.choices.iter().enumerate().map(|(j, choice)| {
-                                            crate::types::AskQuestionOption {
+                                        let opts = mc
+                                            .choices
+                                            .iter()
+                                            .enumerate()
+                                            .map(|(j, choice)| crate::types::AskQuestionOption {
                                                 id: (j + 1).to_string(),
                                                 text: choice.clone(),
-                                            }
-                                        }).collect();
+                                            })
+                                            .collect();
                                         questions_list.push(crate::types::AskQuestionEntry {
                                             question: mc.question.clone(),
                                             options: opts,
@@ -1145,10 +1314,19 @@ impl LocalConnectionStrategy {
                                 ];
 
                                 if !questions_list.is_empty() {
-                                    let spec = crate::types::AskQuestionInteractionSpec { questions: questions_list };
-                                    if let Ok((hook_res, Some(question_res), _op_ctx)) = hook_runner_clone.dispatch_interaction(&turn_ctx_clone, &spec).await {
+                                    let spec = crate::types::AskQuestionInteractionSpec {
+                                        questions: questions_list,
+                                    };
+                                    if let Ok((hook_res, Some(question_res), _op_ctx)) =
+                                        hook_runner_clone
+                                            .dispatch_interaction(&turn_ctx_clone, &spec)
+                                            .await
+                                    {
                                         if hook_res.allow {
-                                            for (orig_idx, r) in indices_to_hook.into_iter().zip(question_res.response.answers.into_iter()) {
+                                            for (orig_idx, r) in indices_to_hook
+                                                .into_iter()
+                                                .zip(question_res.response.answers.into_iter())
+                                            {
                                                 if orig_idx < answers.len() {
                                                     answers[orig_idx] = r;
                                                 }
@@ -1184,22 +1362,34 @@ impl LocalConnectionStrategy {
                         }
                     } else if tsu.state == TrajectoryState::Idle {
                         if is_subagent {
-                            active_subagent_ids_clone.lock().unwrap().remove(&tsu.trajectory_id);
+                            active_subagent_ids_clone
+                                .lock()
+                                .unwrap()
+                                .remove(&tsu.trajectory_id);
 
                             // Dispatch PostToolCall for subagent!
                             let hook_runner_clone = connection_reader.hook_runner.clone();
-                            let subagent_responses_clone = connection_reader.subagent_responses.clone();
-                            let response_text = subagent_responses_clone.lock().unwrap().remove(&tsu.trajectory_id).unwrap_or_default();
+                            let subagent_responses_clone =
+                                connection_reader.subagent_responses.clone();
+                            let response_text = subagent_responses_clone
+                                .lock()
+                                .unwrap()
+                                .remove(&tsu.trajectory_id)
+                                .unwrap_or_default();
 
                             let op_ctx = crate::hooks::OperationContext::new(&turn_ctx);
                             let result = crate::types::ToolResult {
-                                name: crate::types::BuiltinTools::StartSubagent.as_str().to_string(),
+                                name: crate::types::BuiltinTools::StartSubagent
+                                    .as_str()
+                                    .to_string(),
                                 id: Some(tsu.trajectory_id.clone()),
                                 result: serde_json::Value::String(response_text),
                                 error: None,
                             };
                             tokio::spawn(async move {
-                                let _ = hook_runner_clone.dispatch_post_tool_call(&op_ctx, &result).await;
+                                let _ = hook_runner_clone
+                                    .dispatch_post_tool_call(&op_ctx, &result)
+                                    .await;
                             });
                         } else {
                             let mut p_idle = parent_idle_clone.lock().unwrap();
@@ -1224,7 +1414,9 @@ impl LocalConnectionStrategy {
                     let tc_id = tc.id.clone().unwrap_or_default();
                     let name = tc.name.clone();
 
-                    let args: serde_json::Value = serde_json::from_str(&tc.arguments_json.clone().unwrap_or_default()).unwrap_or(serde_json::Value::Null);
+                    let args: serde_json::Value =
+                        serde_json::from_str(&tc.arguments_json.clone().unwrap_or_default())
+                            .unwrap_or(serde_json::Value::Null);
                     let mut matched_tool = None;
                     for ct in custom_tools_arc.iter() {
                         if ct.name() == name {
@@ -1271,15 +1463,31 @@ impl LocalConnectionStrategy {
                             };
 
                             // Dispatch PreToolCallDecide for custom tools
-                            let (hook_res, _, op_ctx) = match hook_runner_clone.dispatch_pre_tool_call(&turn_ctx_clone, &tc_struct).await {
+                            let (hook_res, _, op_ctx) = match hook_runner_clone
+                                .dispatch_pre_tool_call(&turn_ctx_clone, &tc_struct)
+                                .await
+                            {
                                 Ok(res) => res,
-                                Err(err) => (crate::hooks::HookResult::deny(&err), tc_struct.clone(), crate::hooks::OperationContext::new(&turn_ctx_clone)),
+                                Err(err) => (
+                                    crate::hooks::HookResult::deny(&err),
+                                    tc_struct.clone(),
+                                    crate::hooks::OperationContext::new(&turn_ctx_clone),
+                                ),
                             };
 
                             if !hook_res.allow {
-                                let reason = if hook_res.message.is_empty() { "No reason provided".to_string() } else { hook_res.message };
-                                let err_msg = format!("Tool execution denied by hook policy: {}", reason);
-                                send_tool_response(&input_tx_clone, &tc_id_clone, serde_json::json!({ "error": err_msg }));
+                                let reason = if hook_res.message.is_empty() {
+                                    "No reason provided".to_string()
+                                } else {
+                                    hook_res.message
+                                };
+                                let err_msg =
+                                    format!("Tool execution denied by hook policy: {}", reason);
+                                send_tool_response(
+                                    &input_tx_clone,
+                                    &tc_id_clone,
+                                    serde_json::json!({ "error": err_msg }),
+                                );
                                 return;
                             }
 
@@ -1300,13 +1508,19 @@ impl LocalConnectionStrategy {
                                         result: output_val.clone(),
                                         error: None,
                                     };
-                                    let _ = hook_runner_clone.dispatch_post_tool_call(&op_ctx, &tool_res).await;
+                                    let _ = hook_runner_clone
+                                        .dispatch_post_tool_call(&op_ctx, &tool_res)
+                                        .await;
                                     Ok(output_val)
                                 }
                                 Err(err) => {
                                     // Dispatch OnToolError on failure
-                                    let error = std::io::Error::new(std::io::ErrorKind::Other, err.clone());
-                                    match hook_runner_clone.dispatch_on_tool_error(&op_ctx, &error).await {
+                                    let error =
+                                        std::io::Error::new(std::io::ErrorKind::Other, err.clone());
+                                    match hook_runner_clone
+                                        .dispatch_on_tool_error(&op_ctx, &error)
+                                        .await
+                                    {
                                         Ok((rec_res, Some(recovery_val))) if rec_res.allow => {
                                             // Recovered: dispatch PostToolCall for recovered value
                                             let tool_res = crate::types::ToolResult {
@@ -1315,10 +1529,12 @@ impl LocalConnectionStrategy {
                                                 result: recovery_val.clone(),
                                                 error: None,
                                             };
-                                            let _ = hook_runner_clone.dispatch_post_tool_call(&op_ctx, &tool_res).await;
+                                            let _ = hook_runner_clone
+                                                .dispatch_post_tool_call(&op_ctx, &tool_res)
+                                                .await;
                                             Ok(recovery_val)
                                         }
-                                        _ => Err(err)
+                                        _ => Err(err),
                                     }
                                 }
                             };
@@ -1331,7 +1547,10 @@ impl LocalConnectionStrategy {
                             send_tool_response(&input_tx_clone, &tc_id_clone, response_json);
                         });
                     } else {
-                        log::warn!("Tool call received but no matching custom tool registered for: {}", name);
+                        log::warn!(
+                            "Tool call received but no matching custom tool registered for: {}",
+                            name
+                        );
                     }
                 }
             }
@@ -1341,9 +1560,15 @@ impl LocalConnectionStrategy {
     }
 }
 
-fn extract_builtin_tool_result(step_update: &crate::types::StepUpdate) -> Option<serde_json::Value> {
+fn extract_builtin_tool_result(
+    step_update: &crate::types::StepUpdate,
+) -> Option<serde_json::Value> {
     if let Some(ref rc) = step_update.run_command {
-        if let Some(out) = rc.get("combined_output").or_else(|| rc.get("combinedOutput")).and_then(|v| v.as_str()) {
+        if let Some(out) = rc
+            .get("combined_output")
+            .or_else(|| rc.get("combinedOutput"))
+            .and_then(|v| v.as_str())
+        {
             return Some(serde_json::json!({ "output": out }));
         }
     }
@@ -1365,18 +1590,30 @@ fn extract_builtin_tool_result(step_update: &crate::types::StepUpdate) -> Option
         }
     }
     if let Some(ref sd) = step_update.search_directory {
-        if let Some(num) = sd.get("num_results").or_else(|| sd.get("numResults")).and_then(|v| v.as_u64()) {
+        if let Some(num) = sd
+            .get("num_results")
+            .or_else(|| sd.get("numResults"))
+            .and_then(|v| v.as_u64())
+        {
             return Some(serde_json::json!({ "num_results": num }));
         }
     }
     if let Some(ref ef) = step_update.edit_file {
-        if ef.get("diff_block").or_else(|| ef.get("diffBlock")).is_some() {
+        if ef
+            .get("diff_block")
+            .or_else(|| ef.get("diffBlock"))
+            .is_some()
+        {
             let text = step_update.text.clone().unwrap_or_default();
             return Some(serde_json::json!({ "summary": text }));
         }
     }
     if let Some(ref gi) = step_update.generate_image {
-        if let Some(img_name) = gi.get("image_name").or_else(|| gi.get("imageName")).and_then(|v| v.as_str()) {
+        if let Some(img_name) = gi
+            .get("image_name")
+            .or_else(|| gi.get("imageName"))
+            .and_then(|v| v.as_str())
+        {
             return Some(serde_json::json!({ "image_name": img_name }));
         }
     }

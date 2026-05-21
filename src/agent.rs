@@ -14,9 +14,9 @@
 
 //! High-level Agent orchestrator matching Layer 1 API.
 
-use crate::conversation::Conversation;
 use crate::connection::LocalConnectionStrategy;
-use crate::types::{Content, ChatResponse};
+use crate::conversation::Conversation;
+use crate::types::{ChatResponse, Content};
 
 pub struct Agent {
     conversation: Conversation,

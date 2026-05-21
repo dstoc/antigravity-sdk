@@ -17,11 +17,11 @@
 //! This example shows how to configure the agent to return a strongly-typed,
 //! validated JSON payload instead of raw, unstructured conversational text.
 
-use std::sync::Arc;
 use antigravity_sdk::types::CapabilitiesConfig;
 use antigravity_sdk::{
     Agent, CustomTool, IntoContent, LocalConnectionStrategy, ToolContext, ToolFuture,
 };
+use std::sync::Arc;
 
 // A custom mock tool that retrieves unstructured text data
 struct FetchUnstructuredMeetingNotes;
@@ -50,7 +50,8 @@ impl CustomTool for FetchUnstructuredMeetingNotes {
 
     fn call(&self, args: serde_json::Value, _ctx: Option<ToolContext>) -> ToolFuture {
         Box::pin(async move {
-            let meeting_id = args.get("meeting_id")
+            let meeting_id = args
+                .get("meeting_id")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| "Missing meeting_id".to_string())?;
             let res = if meeting_id == "meeting-2026-05" {
@@ -105,7 +106,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = LocalConnectionStrategy::default()
         .capabilities(capabilities)
-        .custom_tools(vec![Arc::new(FetchUnstructuredMeetingNotes) as Arc<dyn CustomTool>]);
+        .custom_tools(vec![
+            Arc::new(FetchUnstructuredMeetingNotes) as Arc<dyn CustomTool>
+        ]);
 
     let meeting_agent = Agent::start(config).await?;
 
@@ -131,9 +134,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n  === Structured Meeting Action Items ===");
     if let Some(action_items) = data.get("action_items").and_then(|v| v.as_array()) {
         for item in action_items {
-            println!("  - Assignee: {}", item.get("assignee").and_then(|v| v.as_str()).unwrap_or(""));
-            println!("    Task:     {}", item.get("task").and_then(|v| v.as_str()).unwrap_or(""));
-            println!("    Deadline: {}\n", item.get("deadline").and_then(|v| v.as_str()).unwrap_or(""));
+            println!(
+                "  - Assignee: {}",
+                item.get("assignee").and_then(|v| v.as_str()).unwrap_or("")
+            );
+            println!(
+                "    Task:     {}",
+                item.get("task").and_then(|v| v.as_str()).unwrap_or("")
+            );
+            println!(
+                "    Deadline: {}\n",
+                item.get("deadline").and_then(|v| v.as_str()).unwrap_or("")
+            );
         }
     }
 

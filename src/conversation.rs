@@ -14,13 +14,15 @@
 
 //! Stateful conversation session wrapping a Connection.
 
+use futures_util::stream::{BoxStream, StreamExt};
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use futures_util::stream::{BoxStream, StreamExt};
 
-use crate::types::{Step, StepSource, StepTarget, StreamChunk, UsageMetadata, Content, ChatResponse};
 use crate::connection::Connection;
+use crate::types::{
+    ChatResponse, Content, Step, StepSource, StepTarget, StreamChunk, UsageMetadata,
+};
 
 const DEFAULT_MAX_HISTORY_SIZE: usize = 10_000;
 
@@ -39,7 +41,8 @@ fn add_usage(target: &mut UsageMetadata, source: &UsageMetadata) {
         target.prompt_token_count = Some(target.prompt_token_count.unwrap_or(0) + val);
     }
     if let Some(val) = source.cached_content_token_count {
-        target.cached_content_token_count = Some(target.cached_content_token_count.unwrap_or(0) + val);
+        target.cached_content_token_count =
+            Some(target.cached_content_token_count.unwrap_or(0) + val);
     }
     if let Some(val) = source.candidates_token_count {
         target.candidates_token_count = Some(target.candidates_token_count.unwrap_or(0) + val);
@@ -242,53 +245,60 @@ impl Conversation {
             pending_chunks,
         };
 
-        Box::pin(futures_util::stream::unfold(state, |mut state| async move {
-            if let Some(chunk) = state.pending_chunks.pop_front() {
-                return Some((chunk, state));
-            }
-
-            while let Some(step) = state.stream.next().await {
-                let is_model = step.source == StepSource::Model;
-                let is_target_user = step.target == StepTarget::User;
-
-                if is_model && is_target_user {
-                    if !step.thinking_delta.is_empty() {
-                        state.pending_chunks.push_back(StreamChunk::Thought {
-                            step_index: step.step_index,
-                            text: step.thinking_delta.clone(),
-                        });
-                    }
-                    if !step.content_delta.is_empty() {
-                        state.pending_chunks.push_back(StreamChunk::Text {
-                            step_index: step.step_index,
-                            text: step.content_delta.clone(),
-                        });
-                    }
-                }
-
-                for call in step.tool_calls {
-                    if let Some(ref id) = call.id {
-                        if !state.seen_tool_ids.contains(id) {
-                            state.seen_tool_ids.insert(id.clone());
-                            state.pending_chunks.push_back(StreamChunk::ToolCall(call));
-                        }
-                    } else {
-                        state.pending_chunks.push_back(StreamChunk::ToolCall(call));
-                    }
-                }
-
+        Box::pin(futures_util::stream::unfold(
+            state,
+            |mut state| async move {
                 if let Some(chunk) = state.pending_chunks.pop_front() {
                     return Some((chunk, state));
                 }
-            }
-            None
-        }))
+
+                while let Some(step) = state.stream.next().await {
+                    let is_model = step.source == StepSource::Model;
+                    let is_target_user = step.target == StepTarget::User;
+
+                    if is_model && is_target_user {
+                        if !step.thinking_delta.is_empty() {
+                            state.pending_chunks.push_back(StreamChunk::Thought {
+                                step_index: step.step_index,
+                                text: step.thinking_delta.clone(),
+                            });
+                        }
+                        if !step.content_delta.is_empty() {
+                            state.pending_chunks.push_back(StreamChunk::Text {
+                                step_index: step.step_index,
+                                text: step.content_delta.clone(),
+                            });
+                        }
+                    }
+
+                    for call in step.tool_calls {
+                        if let Some(ref id) = call.id {
+                            if !state.seen_tool_ids.contains(id) {
+                                state.seen_tool_ids.insert(id.clone());
+                                state.pending_chunks.push_back(StreamChunk::ToolCall(call));
+                            }
+                        } else {
+                            state.pending_chunks.push_back(StreamChunk::ToolCall(call));
+                        }
+                    }
+
+                    if let Some(chunk) = state.pending_chunks.pop_front() {
+                        return Some((chunk, state));
+                    }
+                }
+                None
+            },
+        ))
     }
 
     pub async fn chat(&self, prompt: Option<Content>) -> Result<ChatResponse, String> {
         self.send(prompt).await?;
         let last_turn_usg = self.turn_usage.lock().await.clone();
-        Ok(ChatResponse::new(self.receive_chunks(), last_turn_usg, Some(self.steps.clone())))
+        Ok(ChatResponse::new(
+            self.receive_chunks(),
+            last_turn_usg,
+            Some(self.steps.clone()),
+        ))
     }
 
     pub async fn send_trigger_notification(&self, message: &str) -> Result<(), String> {

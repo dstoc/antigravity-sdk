@@ -17,12 +17,12 @@
 //! This example shows how to configure the agent's system instructions using both
 //! templated and custom approaches.
 
-use std::path::Path;
-use std::sync::Arc;
 use antigravity_sdk::types::{SystemInstructionSection, SystemInstructions};
 use antigravity_sdk::{
     Agent, CustomTool, IntoContent, LocalConnectionStrategy, ToolContext, ToolFuture,
 };
+use std::path::Path;
+use std::sync::Arc;
 
 struct CheckStyleGuide;
 
@@ -50,7 +50,8 @@ impl CustomTool for CheckStyleGuide {
 
     fn call(&self, args: serde_json::Value, _ctx: Option<ToolContext>) -> ToolFuture {
         Box::pin(async move {
-            let language = args.get("language")
+            let language = args
+                .get("language")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| "Missing language".to_string())?;
             let result = if language.to_lowercase() == "python" {
@@ -82,10 +83,8 @@ async fn run_templated_example() -> Result<(), Box<dyn std::error::Error>> {
         "When reviewing Python code, use the `check_style_guide` tool to verify rules.",
     );
 
-    let templated_si = SystemInstructions::templated(
-        identity,
-        vec![review_criteria, style_guide_instructions],
-    );
+    let templated_si =
+        SystemInstructions::templated(identity, vec![review_criteria, style_guide_instructions]);
 
     let config = LocalConnectionStrategy::default()
         .system_instructions(templated_si)
@@ -135,16 +134,21 @@ You are an expert Code Quality Reviewer agent. Your goal is to help developers m
 ";
 
     // Dynamically gather workspace and app data directory info in Rust.
-    let cwd = std::env::current_dir().unwrap_or_default().to_string_lossy().into_owned();
+    let cwd = std::env::current_dir()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned();
     let app_data_dir = "~/.gemini/antigravity".to_string();
     let os_name = std::env::consts::OS;
-    let user_info = format!("
+    let user_info = format!(
+        "
 <user_information>
 Operating System: {os_name}
 Active Workspace CWD: {cwd}
 Storage Directory (App Data): {app_data_dir}
 </user_information>
-");
+"
+    );
 
     // Configure the active skill folders.
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
@@ -213,7 +217,10 @@ You have access to the `check_style_guide` tool. When reviewing Python code, alw
 ";
 
     // Assemble the finalized custom system prompt string
-    let final_si_prompt = format!("{}{}{}{}", identity_text, skills_instructions, guidelines_text, user_info);
+    let final_si_prompt = format!(
+        "{}{}{}{}",
+        identity_text, skills_instructions, guidelines_text, user_info
+    );
     let custom_si = SystemInstructions::custom(final_si_prompt);
 
     let config = LocalConnectionStrategy::default()

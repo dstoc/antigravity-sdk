@@ -14,12 +14,12 @@
 
 //! Example demonstrating custom tools and stateful tools with ToolContext.
 
-use std::sync::Arc;
 use antigravity_sdk::{
-    Agent, LocalConnectionStrategy, IntoContent, CustomTool, ToolContext, ToolFuture,
-    allow, deny_all,
-    types::{SystemInstructions, CustomSystemInstructions, CustomSystemInstructionPart},
+    Agent, CustomTool, IntoContent, LocalConnectionStrategy, ToolContext, ToolFuture, allow,
+    deny_all,
+    types::{CustomSystemInstructionPart, CustomSystemInstructions, SystemInstructions},
 };
+use std::sync::Arc;
 
 // 1. Define a simple tool
 struct LookupFruitSku;
@@ -48,7 +48,8 @@ impl CustomTool for LookupFruitSku {
 
     fn call(&self, args: serde_json::Value, _ctx: Option<ToolContext>) -> ToolFuture {
         Box::pin(async move {
-            let fruit_name = args.get("fruit_name")
+            let fruit_name = args
+                .get("fruit_name")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| "Missing fruit_name".to_string())?;
 
@@ -103,12 +104,14 @@ impl CustomTool for RecordFruit {
 
     fn call(&self, args: serde_json::Value, ctx: Option<ToolContext>) -> ToolFuture {
         Box::pin(async move {
-            let sku = args.get("sku")
+            let sku = args
+                .get("sku")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| "Missing sku".to_string())?
                 .to_string();
 
-            let count = args.get("count")
+            let count = args
+                .get("count")
                 .and_then(|v| v.as_i64())
                 .ok_or_else(|| "Missing count".to_string())?;
 
@@ -121,9 +124,7 @@ impl CustomTool for RecordFruit {
                 serde_json::Map::new()
             };
 
-            let current_count = counts.get(&sku)
-                .and_then(|v| v.as_i64())
-                .unwrap_or(0);
+            let current_count = counts.get(&sku).and_then(|v| v.as_i64()).unwrap_or(0);
 
             let new_count = current_count + count;
             counts.insert(
@@ -131,7 +132,8 @@ impl CustomTool for RecordFruit {
                 serde_json::Value::Number(serde_json::Number::from(new_count)),
             );
 
-            ctx.set_state("fruit_counts", serde_json::Value::Object(counts)).await;
+            ctx.set_state("fruit_counts", serde_json::Value::Object(counts))
+                .await;
 
             let result = format!(
                 "Recorded {} units for {}. Total count is now {}.",
@@ -161,11 +163,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         appended: None,
     });
 
-    config.policies = vec![
-        deny_all(),
-        allow("lookup_fruit_sku"),
-        allow("record_fruit"),
-    ];
+    config.policies = vec![deny_all(), allow("lookup_fruit_sku"), allow("record_fruit")];
 
     println!("  === Custom Tools Demo ===");
     let my_agent = Agent::start(config).await?;

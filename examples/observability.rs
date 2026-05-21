@@ -19,11 +19,11 @@
 //! - Use hooks to create a basic audit log of tool calls.
 //! - Access token usage metadata, including thinking tokens.
 
-use std::sync::Arc;
-use futures_util::StreamExt;
 use antigravity_sdk::{
-    Agent, LocalConnectionStrategy, CustomTool, ToolContext, ToolFuture, IntoContent,
+    Agent, CustomTool, IntoContent, LocalConnectionStrategy, ToolContext, ToolFuture,
 };
+use futures_util::StreamExt;
+use std::sync::Arc;
 
 // A simple tool to demonstrate tool call hooks
 struct GetWeather;
@@ -52,7 +52,8 @@ impl CustomTool for GetWeather {
 
     fn call(&self, args: serde_json::Value, _ctx: Option<ToolContext>) -> ToolFuture {
         Box::pin(async move {
-            let location = args.get("location")
+            let location = args
+                .get("location")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| "Missing location".to_string())?;
             let res = format!("The weather in {} is sunny.", location);
@@ -101,8 +102,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let usage = my_agent.conversation().total_usage().await;
     println!("\n  --- Token Usage ---");
     println!("  Prompt tokens: {}", usage.prompt_token_count.unwrap_or(0));
-    println!("  Output tokens: {}", usage.candidates_token_count.unwrap_or(0));
-    println!("  Thinking tokens: {}", usage.thoughts_token_count.unwrap_or(0));
+    println!(
+        "  Output tokens: {}",
+        usage.candidates_token_count.unwrap_or(0)
+    );
+    println!(
+        "  Thinking tokens: {}",
+        usage.thoughts_token_count.unwrap_or(0)
+    );
     println!("  Total tokens: {}", usage.total_token_count.unwrap_or(0));
 
     my_agent.stop().await;

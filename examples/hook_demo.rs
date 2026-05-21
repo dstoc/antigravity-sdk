@@ -15,7 +15,7 @@
 //! Example demonstrating the lifecycle hooks framework in the Antigravity Rust SDK.
 
 use antigravity_sdk::hooks::{HookResult, SessionContext, TurnContext};
-use antigravity_sdk::{Agent, Content, ContentPrimitive, LocalConnectionStrategy, IntoContent};
+use antigravity_sdk::{Agent, Content, ContentPrimitive, IntoContent, LocalConnectionStrategy};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -55,7 +55,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         // Hook 3: Post Turn
         .register_post_turn(|context: TurnContext, response: String| async move {
-            let turn_num = context.get("turn_number").unwrap_or_else(|| serde_json::json!(0));
+            let turn_num = context
+                .get("turn_number")
+                .unwrap_or_else(|| serde_json::json!(0));
             println!("[Hook] PostTurn for turn #{} completed!", turn_num);
             println!("[Hook] Response length: {} characters", response.len());
             Ok(())

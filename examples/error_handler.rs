@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use antigravity_sdk::{
+    Agent, CustomTool, IntoContent, LocalConnectionStrategy, ToolContext, ToolFuture,
+};
 use std::sync::Arc;
-use antigravity_sdk::{Agent, LocalConnectionStrategy, IntoContent, CustomTool, ToolContext, ToolFuture};
 
 struct ExplodingTool;
 
@@ -41,10 +43,14 @@ impl CustomTool for ExplodingTool {
 
     fn call(&self, args: serde_json::Value, _ctx: Option<ToolContext>) -> ToolFuture {
         Box::pin(async move {
-            let input_data = args.get("input_data")
+            let input_data = args
+                .get("input_data")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
-            println!("\n  🔧 [Tool] Exploding tool called with: {}, exploding...", input_data);
+            println!(
+                "\n  🔧 [Tool] Exploding tool called with: {}, exploding...",
+                input_data
+            );
             Err("This tool is intentionally broken and always fails.".to_string())
         })
     }

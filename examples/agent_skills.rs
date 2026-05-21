@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use antigravity_sdk::{Agent, LocalConnectionStrategy, IntoContent};
+use antigravity_sdk::{Agent, IntoContent, LocalConnectionStrategy};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -24,8 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("  Loading skills from: {}", skill_path_str);
 
-    let config = LocalConnectionStrategy::default()
-        .skills_paths(vec![skill_path_str]);
+    let config = LocalConnectionStrategy::default().skills_paths(vec![skill_path_str]);
 
     let my_agent = Agent::start(config).await?;
 

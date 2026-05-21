@@ -17,7 +17,9 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use crate::types::{Content, ToolCall, ToolResult, UserQuestionsResponse, AskQuestionInteractionSpec};
+use crate::types::{
+    AskQuestionInteractionSpec, Content, ToolCall, ToolResult, UserQuestionsResponse,
+};
 
 // =============================================================================
 // Hook Context Management
@@ -186,37 +188,65 @@ pub trait OnSessionEnd: Send + Sync {
 
 /// Invoked before a turn starts.
 pub trait PreTurn: Send + Sync {
-    fn run<'a>(&'a self, context: &'a TurnContext, prompt: &'a Content) -> HookFuture<'a, Result<HookResult, String>>;
+    fn run<'a>(
+        &'a self,
+        context: &'a TurnContext,
+        prompt: &'a Content,
+    ) -> HookFuture<'a, Result<HookResult, String>>;
 }
 
 /// Invoked after a turn ends.
 pub trait PostTurn: Send + Sync {
-    fn run<'a>(&'a self, context: &'a TurnContext, response: &'a str) -> HookFuture<'a, Result<(), String>>;
+    fn run<'a>(
+        &'a self,
+        context: &'a TurnContext,
+        response: &'a str,
+    ) -> HookFuture<'a, Result<(), String>>;
 }
 
 /// Invoked before a tool call to decide if it should proceed.
 pub trait PreToolCallDecide: Send + Sync {
-    fn run<'a>(&'a self, context: &'a OperationContext, tool_call: &'a ToolCall) -> HookFuture<'a, Result<HookResult, String>>;
+    fn run<'a>(
+        &'a self,
+        context: &'a OperationContext,
+        tool_call: &'a ToolCall,
+    ) -> HookFuture<'a, Result<HookResult, String>>;
 }
 
 /// Invoked after a tool call completes.
 pub trait PostToolCall: Send + Sync {
-    fn run<'a>(&'a self, context: &'a OperationContext, result: &'a ToolResult) -> HookFuture<'a, Result<(), String>>;
+    fn run<'a>(
+        &'a self,
+        context: &'a OperationContext,
+        result: &'a ToolResult,
+    ) -> HookFuture<'a, Result<(), String>>;
 }
 
 /// Invoked when a tool fails, allowing recovery or modification.
 pub trait OnToolError: Send + Sync {
-    fn run<'a>(&'a self, context: &'a OperationContext, error: &'a (dyn std::error::Error + Send + Sync)) -> HookFuture<'a, Result<Option<serde_json::Value>, String>>;
+    fn run<'a>(
+        &'a self,
+        context: &'a OperationContext,
+        error: &'a (dyn std::error::Error + Send + Sync),
+    ) -> HookFuture<'a, Result<Option<serde_json::Value>, String>>;
 }
 
 /// Hook invoked when the agent needs user interaction.
 pub trait OnInteraction: Send + Sync {
-    fn run<'a>(&'a self, context: &'a OperationContext, spec: &'a AskQuestionInteractionSpec) -> HookFuture<'a, Result<Option<UserQuestionsResponse>, String>>;
+    fn run<'a>(
+        &'a self,
+        context: &'a OperationContext,
+        spec: &'a AskQuestionInteractionSpec,
+    ) -> HookFuture<'a, Result<Option<UserQuestionsResponse>, String>>;
 }
 
 /// Invoked when a context compaction event occurs.
 pub trait OnCompaction: Send + Sync {
-    fn run<'a>(&'a self, context: &'a OperationContext, data: &'a serde_json::Value) -> HookFuture<'a, Result<(), String>>;
+    fn run<'a>(
+        &'a self,
+        context: &'a OperationContext,
+        data: &'a serde_json::Value,
+    ) -> HookFuture<'a, Result<(), String>>;
 }
 
 // =============================================================================
@@ -248,7 +278,11 @@ where
     F: Fn(TurnContext, Content) -> Fut + Send + Sync,
     Fut: std::future::Future<Output = Result<HookResult, String>> + Send + 'static,
 {
-    fn run<'a>(&'a self, context: &'a TurnContext, prompt: &'a Content) -> HookFuture<'a, Result<HookResult, String>> {
+    fn run<'a>(
+        &'a self,
+        context: &'a TurnContext,
+        prompt: &'a Content,
+    ) -> HookFuture<'a, Result<HookResult, String>> {
         Box::pin((self)(context.clone(), prompt.clone()))
     }
 }
@@ -258,7 +292,11 @@ where
     F: Fn(TurnContext, String) -> Fut + Send + Sync,
     Fut: std::future::Future<Output = Result<(), String>> + Send + 'static,
 {
-    fn run<'a>(&'a self, context: &'a TurnContext, response: &'a str) -> HookFuture<'a, Result<(), String>> {
+    fn run<'a>(
+        &'a self,
+        context: &'a TurnContext,
+        response: &'a str,
+    ) -> HookFuture<'a, Result<(), String>> {
         Box::pin((self)(context.clone(), response.to_string()))
     }
 }
@@ -268,7 +306,11 @@ where
     F: Fn(OperationContext, ToolCall) -> Fut + Send + Sync,
     Fut: std::future::Future<Output = Result<HookResult, String>> + Send + 'static,
 {
-    fn run<'a>(&'a self, context: &'a OperationContext, tool_call: &'a ToolCall) -> HookFuture<'a, Result<HookResult, String>> {
+    fn run<'a>(
+        &'a self,
+        context: &'a OperationContext,
+        tool_call: &'a ToolCall,
+    ) -> HookFuture<'a, Result<HookResult, String>> {
         Box::pin((self)(context.clone(), tool_call.clone()))
     }
 }
@@ -278,7 +320,11 @@ where
     F: Fn(OperationContext, ToolResult) -> Fut + Send + Sync,
     Fut: std::future::Future<Output = Result<(), String>> + Send + 'static,
 {
-    fn run<'a>(&'a self, context: &'a OperationContext, result: &'a ToolResult) -> HookFuture<'a, Result<(), String>> {
+    fn run<'a>(
+        &'a self,
+        context: &'a OperationContext,
+        result: &'a ToolResult,
+    ) -> HookFuture<'a, Result<(), String>> {
         Box::pin((self)(context.clone(), result.clone()))
     }
 }
@@ -288,7 +334,11 @@ where
     F: Fn(OperationContext, String) -> Fut + Send + Sync,
     Fut: std::future::Future<Output = Result<Option<serde_json::Value>, String>> + Send + 'static,
 {
-    fn run<'a>(&'a self, context: &'a OperationContext, error: &'a (dyn std::error::Error + Send + Sync)) -> HookFuture<'a, Result<Option<serde_json::Value>, String>> {
+    fn run<'a>(
+        &'a self,
+        context: &'a OperationContext,
+        error: &'a (dyn std::error::Error + Send + Sync),
+    ) -> HookFuture<'a, Result<Option<serde_json::Value>, String>> {
         Box::pin((self)(context.clone(), error.to_string()))
     }
 }
@@ -296,9 +346,15 @@ where
 impl<F, Fut> OnInteraction for F
 where
     F: Fn(OperationContext, AskQuestionInteractionSpec) -> Fut + Send + Sync,
-    Fut: std::future::Future<Output = Result<Option<UserQuestionsResponse>, String>> + Send + 'static,
+    Fut: std::future::Future<Output = Result<Option<UserQuestionsResponse>, String>>
+        + Send
+        + 'static,
 {
-    fn run<'a>(&'a self, context: &'a OperationContext, spec: &'a AskQuestionInteractionSpec) -> HookFuture<'a, Result<Option<UserQuestionsResponse>, String>> {
+    fn run<'a>(
+        &'a self,
+        context: &'a OperationContext,
+        spec: &'a AskQuestionInteractionSpec,
+    ) -> HookFuture<'a, Result<Option<UserQuestionsResponse>, String>> {
         Box::pin((self)(context.clone(), spec.clone()))
     }
 }
@@ -308,7 +364,11 @@ where
     F: Fn(OperationContext, serde_json::Value) -> Fut + Send + Sync,
     Fut: std::future::Future<Output = Result<(), String>> + Send + 'static,
 {
-    fn run<'a>(&'a self, context: &'a OperationContext, data: &'a serde_json::Value) -> HookFuture<'a, Result<(), String>> {
+    fn run<'a>(
+        &'a self,
+        context: &'a OperationContext,
+        data: &'a serde_json::Value,
+    ) -> HookFuture<'a, Result<(), String>> {
         Box::pin((self)(context.clone(), data.clone()))
     }
 }
@@ -330,43 +390,71 @@ impl<T: OnSessionEnd + ?Sized> OnSessionEnd for Arc<T> {
 }
 
 impl<T: PreTurn + ?Sized> PreTurn for Arc<T> {
-    fn run<'a>(&'a self, context: &'a TurnContext, prompt: &'a Content) -> HookFuture<'a, Result<HookResult, String>> {
+    fn run<'a>(
+        &'a self,
+        context: &'a TurnContext,
+        prompt: &'a Content,
+    ) -> HookFuture<'a, Result<HookResult, String>> {
         (**self).run(context, prompt)
     }
 }
 
 impl<T: PostTurn + ?Sized> PostTurn for Arc<T> {
-    fn run<'a>(&'a self, context: &'a TurnContext, response: &'a str) -> HookFuture<'a, Result<(), String>> {
+    fn run<'a>(
+        &'a self,
+        context: &'a TurnContext,
+        response: &'a str,
+    ) -> HookFuture<'a, Result<(), String>> {
         (**self).run(context, response)
     }
 }
 
 impl<T: PreToolCallDecide + ?Sized> PreToolCallDecide for Arc<T> {
-    fn run<'a>(&'a self, context: &'a OperationContext, tool_call: &'a ToolCall) -> HookFuture<'a, Result<HookResult, String>> {
+    fn run<'a>(
+        &'a self,
+        context: &'a OperationContext,
+        tool_call: &'a ToolCall,
+    ) -> HookFuture<'a, Result<HookResult, String>> {
         (**self).run(context, tool_call)
     }
 }
 
 impl<T: PostToolCall + ?Sized> PostToolCall for Arc<T> {
-    fn run<'a>(&'a self, context: &'a OperationContext, result: &'a ToolResult) -> HookFuture<'a, Result<(), String>> {
+    fn run<'a>(
+        &'a self,
+        context: &'a OperationContext,
+        result: &'a ToolResult,
+    ) -> HookFuture<'a, Result<(), String>> {
         (**self).run(context, result)
     }
 }
 
 impl<T: OnToolError + ?Sized> OnToolError for Arc<T> {
-    fn run<'a>(&'a self, context: &'a OperationContext, error: &'a (dyn std::error::Error + Send + Sync)) -> HookFuture<'a, Result<Option<serde_json::Value>, String>> {
+    fn run<'a>(
+        &'a self,
+        context: &'a OperationContext,
+        error: &'a (dyn std::error::Error + Send + Sync),
+    ) -> HookFuture<'a, Result<Option<serde_json::Value>, String>> {
         (**self).run(context, error)
     }
 }
 
 impl<T: OnInteraction + ?Sized> OnInteraction for Arc<T> {
-    fn run<'a>(&'a self, context: &'a OperationContext, spec: &'a AskQuestionInteractionSpec) -> HookFuture<'a, Result<Option<UserQuestionsResponse>, String>> {
+    fn run<'a>(
+        &'a self,
+        context: &'a OperationContext,
+        spec: &'a AskQuestionInteractionSpec,
+    ) -> HookFuture<'a, Result<Option<UserQuestionsResponse>, String>> {
         (**self).run(context, spec)
     }
 }
 
 impl<T: OnCompaction + ?Sized> OnCompaction for Arc<T> {
-    fn run<'a>(&'a self, context: &'a OperationContext, data: &'a serde_json::Value) -> HookFuture<'a, Result<(), String>> {
+    fn run<'a>(
+        &'a self,
+        context: &'a OperationContext,
+        data: &'a serde_json::Value,
+    ) -> HookFuture<'a, Result<(), String>> {
         (**self).run(context, data)
     }
 }
@@ -458,7 +546,10 @@ impl HookRunner {
         Ok(())
     }
 
-    pub async fn dispatch_pre_turn(&self, prompt: &Option<Content>) -> Result<(HookResult, TurnContext), String> {
+    pub async fn dispatch_pre_turn(
+        &self,
+        prompt: &Option<Content>,
+    ) -> Result<(HookResult, TurnContext), String> {
         let turn_ctx = TurnContext::new(&self.session_context);
         let normalized_prompt = prompt.clone().unwrap_or_default();
         for hook in &self.pre_turn_hooks {
@@ -470,14 +561,22 @@ impl HookRunner {
         Ok((HookResult::allow(), turn_ctx))
     }
 
-    pub async fn dispatch_post_turn(&self, turn_context: &TurnContext, response: &str) -> Result<(), String> {
+    pub async fn dispatch_post_turn(
+        &self,
+        turn_context: &TurnContext,
+        response: &str,
+    ) -> Result<(), String> {
         for hook in &self.post_turn_hooks {
             hook.run(turn_context, response).await?;
         }
         Ok(())
     }
 
-    pub async fn dispatch_pre_tool_call(&self, turn_context: &TurnContext, tool_call: &ToolCall) -> Result<(HookResult, ToolCall, OperationContext), String> {
+    pub async fn dispatch_pre_tool_call(
+        &self,
+        turn_context: &TurnContext,
+        tool_call: &ToolCall,
+    ) -> Result<(HookResult, ToolCall, OperationContext), String> {
         let op_ctx = OperationContext::new(turn_context);
         for hook in &self.pre_tool_call_decide_hooks {
             let res = hook.run(&op_ctx, tool_call).await?;
@@ -488,38 +587,61 @@ impl HookRunner {
         Ok((HookResult::allow(), tool_call.clone(), op_ctx))
     }
 
-    pub async fn dispatch_post_tool_call(&self, op_context: &OperationContext, result: &ToolResult) -> Result<(), String> {
+    pub async fn dispatch_post_tool_call(
+        &self,
+        op_context: &OperationContext,
+        result: &ToolResult,
+    ) -> Result<(), String> {
         for hook in &self.post_tool_call_hooks {
             hook.run(op_context, result).await?;
         }
         Ok(())
     }
 
-    pub async fn dispatch_on_tool_error(&self, op_context: &OperationContext, error: &(dyn std::error::Error + Send + Sync)) -> Result<(HookResult, Option<serde_json::Value>), String> {
+    pub async fn dispatch_on_tool_error(
+        &self,
+        op_context: &OperationContext,
+        error: &(dyn std::error::Error + Send + Sync),
+    ) -> Result<(HookResult, Option<serde_json::Value>), String> {
         for hook in &self.on_tool_error_hooks {
             match hook.run(op_context, error).await {
                 Ok(Some(val)) => return Ok((HookResult::allow(), Some(val))),
                 Ok(None) => {}
                 Err(e) => {
                     log::error!("Critical failure in OnToolErrorHook: {}", e);
-                    return Ok((HookResult::deny(&format!("Error recovery failed: {}", e)), None));
+                    return Ok((
+                        HookResult::deny(&format!("Error recovery failed: {}", e)),
+                        None,
+                    ));
                 }
             }
         }
         Ok((HookResult::deny(""), None))
     }
 
-    pub async fn dispatch_interaction(&self, turn_context: &TurnContext, spec: &AskQuestionInteractionSpec) -> Result<(HookResult, Option<UserQuestionsResponse>, OperationContext), String> {
+    pub async fn dispatch_interaction(
+        &self,
+        turn_context: &TurnContext,
+        spec: &AskQuestionInteractionSpec,
+    ) -> Result<(HookResult, Option<UserQuestionsResponse>, OperationContext), String> {
         let op_ctx = OperationContext::new(turn_context);
         for hook in &self.on_interaction_hooks {
             if let Some(res) = hook.run(&op_ctx, spec).await? {
                 return Ok((HookResult::allow(), Some(res), op_ctx));
             }
         }
-        Ok((HookResult::deny("No interaction hook handled the request"), None, op_ctx))
+        Ok((
+            HookResult::deny("No interaction hook handled the request"),
+            None,
+            op_ctx,
+        ))
     }
 
-    pub async fn dispatch_compaction(&self, turn_context: &TurnContext, data: &serde_json::Value) -> Result<(), String> {
+    pub async fn dispatch_compaction(
+        &self,
+        turn_context: &TurnContext,
+        data: &serde_json::Value,
+    ) -> Result<(), String> {
         let op_ctx = OperationContext::new(turn_context);
         for hook in &self.on_compaction_hooks {
             hook.run(&op_ctx, data).await?;
@@ -541,27 +663,51 @@ mod tests {
         session.set("override_key", serde_json::json!("session_override"));
 
         let turn = TurnContext::new(&session);
-        assert_eq!(turn.get("session_key"), Some(serde_json::json!("session_val")));
-        assert_eq!(turn.get("override_key"), Some(serde_json::json!("session_override")));
+        assert_eq!(
+            turn.get("session_key"),
+            Some(serde_json::json!("session_val"))
+        );
+        assert_eq!(
+            turn.get("override_key"),
+            Some(serde_json::json!("session_override"))
+        );
 
         turn.set("turn_key", serde_json::json!("turn_val"));
         turn.set("override_key", serde_json::json!("turn_override"));
 
         assert_eq!(session.get("turn_key"), None);
-        assert_eq!(session.get("override_key"), Some(serde_json::json!("session_override")));
-        assert_eq!(turn.get("override_key"), Some(serde_json::json!("turn_override")));
+        assert_eq!(
+            session.get("override_key"),
+            Some(serde_json::json!("session_override"))
+        );
+        assert_eq!(
+            turn.get("override_key"),
+            Some(serde_json::json!("turn_override"))
+        );
 
         let op = OperationContext::new(&turn);
-        assert_eq!(op.get("session_key"), Some(serde_json::json!("session_val")));
+        assert_eq!(
+            op.get("session_key"),
+            Some(serde_json::json!("session_val"))
+        );
         assert_eq!(op.get("turn_key"), Some(serde_json::json!("turn_val")));
-        assert_eq!(op.get("override_key"), Some(serde_json::json!("turn_override")));
+        assert_eq!(
+            op.get("override_key"),
+            Some(serde_json::json!("turn_override"))
+        );
 
         op.set("op_key", serde_json::json!("op_val"));
         op.set("override_key", serde_json::json!("op_override"));
 
         assert_eq!(turn.get("op_key"), None);
-        assert_eq!(turn.get("override_key"), Some(serde_json::json!("turn_override")));
-        assert_eq!(op.get("override_key"), Some(serde_json::json!("op_override")));
+        assert_eq!(
+            turn.get("override_key"),
+            Some(serde_json::json!("turn_override"))
+        );
+        assert_eq!(
+            op.get("override_key"),
+            Some(serde_json::json!("op_override"))
+        );
     }
 
     #[tokio::test]
@@ -654,12 +800,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_policy_engine_as_hook() {
-        use crate::policy::{PolicyEngine, deny, allow_all};
+        use crate::policy::{PolicyEngine, allow_all, deny};
 
-        let policies = vec![
-            deny("run_command"),
-            allow_all(),
-        ];
+        let policies = vec![deny("run_command"), allow_all()];
         let engine = Arc::new(PolicyEngine::new(policies));
 
         let mut runner = HookRunner::new();
@@ -676,7 +819,10 @@ mod tests {
             arguments_json: None,
             canonical_path: None,
         };
-        let (res1, _, _) = runner.dispatch_pre_tool_call(&turn_ctx, &call_run).await.unwrap();
+        let (res1, _, _) = runner
+            .dispatch_pre_tool_call(&turn_ctx, &call_run)
+            .await
+            .unwrap();
         assert!(!res1.allow);
         assert!(res1.message.contains("Denied by policy"));
 
@@ -688,7 +834,10 @@ mod tests {
             arguments_json: None,
             canonical_path: None,
         };
-        let (res2, _, _) = runner.dispatch_pre_tool_call(&turn_ctx, &call_view).await.unwrap();
+        let (res2, _, _) = runner
+            .dispatch_pre_tool_call(&turn_ctx, &call_view)
+            .await
+            .unwrap();
         assert!(res2.allow);
     }
 }

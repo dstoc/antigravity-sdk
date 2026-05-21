@@ -52,7 +52,10 @@ pub fn decode_output_config(mut data: &[u8]) -> Result<OutputConfig, String> {
             }
             2 => {
                 if wire_type != 2 {
-                    return Err(format!("Expected wire type 2 for api_key, got {}", wire_type));
+                    return Err(format!(
+                        "Expected wire type 2 for api_key, got {}",
+                        wire_type
+                    ));
                 }
                 let len = decode_varint(&mut data)? as usize;
                 if data.len() < len {
@@ -145,8 +148,7 @@ mod tests {
         // port (field 1, varint 8080 = 0x90 0x3F): tag = 8 (0x08), value = 0x90 0x3F
         // api_key (field 2, string "secret"): tag = 18 (0x12), len = 6, value = "secret"
         let out_bytes = vec![
-            0x08, 0x90, 0x3F,
-            0x12, 0x06, b's', b'e', b'c', b'r', b'e', b't'
+            0x08, 0x90, 0x3F, 0x12, 0x06, b's', b'e', b'c', b'r', b'e', b't',
         ];
         let decoded = decode_output_config(&out_bytes).unwrap();
         assert_eq!(decoded.port, 8080);
