@@ -33,6 +33,7 @@ pub use policy::{
 };
 pub use types::{
     AskQuestionEntry, AskQuestionInteractionSpec, AskQuestionOption, BuiltinTools,
-    CapabilitiesConfig, ChatResponse, Content, ContentPrimitive, GeminiConfig, IntoContent, Step,
-    StepSource, StepState, StepStatus, StepType, StreamChunk, ToolCall, UsageMetadata,
+    CapabilitiesConfig, ChatResponse, Content, ContentPrimitive, GeminiConfig, GemmaConfig,
+    IntoContent, Step, StepSource, StepState, StepStatus, StepType, StreamChunk, ToolCall,
+    UsageMetadata,
 };

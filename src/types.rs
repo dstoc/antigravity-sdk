@@ -457,6 +457,22 @@ impl Default for GeminiConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct GemmaConfig {
+    #[serde(
+        rename = "baseUrl",
+        alias = "base_url",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub base_url: Option<String>,
+    #[serde(
+        rename = "modelName",
+        alias = "model_name",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub model_name: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemInstructionSection {
     pub title: Option<String>,
@@ -634,6 +650,12 @@ pub struct HarnessConfig {
         skip_serializing_if = "Option::is_none"
     )]
     pub gemini_config: Option<WireGeminiConfig>,
+    #[serde(
+        rename = "gemmaConfig",
+        alias = "gemma_config",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub gemma_config: Option<GemmaConfig>,
     pub workspaces: Vec<Workspace>,
     #[serde(rename = "skillsPaths", alias = "skills_paths")]
     pub skills_paths: Vec<String>,

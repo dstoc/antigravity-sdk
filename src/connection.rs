@@ -28,7 +28,7 @@ use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use crate::policy::PolicyEngine;
 use crate::types::{
     BuiltinTools, CapabilitiesConfig, Content, ContentPrimitive, FileEditToolConfig,
-    FilesystemWorkspace, FindToolConfig, GeminiConfig, GenerateImageToolConfig,
+    FilesystemWorkspace, FindToolConfig, GeminiConfig, GemmaConfig, GenerateImageToolConfig,
     GrepSearchToolConfig, HarnessConfig, HarnessSideTools, InitializeConversationEvent, InputEvent,
     ListDirToolConfig, OutputEvent, QuestionsResponseInner, RunCommandToolConfig, Step, StepSource,
     StepState, StepStatus, StepTarget, StepType, SubagentsConfig, Tool, ToolCall, ToolConfirmation,
@@ -453,6 +453,7 @@ pub struct LocalConnectionStrategy {
     pub binary_path: PathBuf,
     pub save_dir: String,
     pub gemini_config: GeminiConfig,
+    pub gemma_config: Option<GemmaConfig>,
     pub system_instructions: Option<crate::types::SystemInstructions>,
     pub capabilities: CapabilitiesConfig,
     pub workspaces: Vec<String>,
@@ -476,6 +477,7 @@ impl LocalConnectionStrategy {
             binary_path,
             save_dir,
             gemini_config: GeminiConfig::default(),
+            gemma_config: None,
             system_instructions: None,
             capabilities: CapabilitiesConfig::default(),
             workspaces,
@@ -576,6 +578,11 @@ impl LocalConnectionStrategy {
 
     pub fn gemini_config(mut self, config: crate::types::GeminiConfig) -> Self {
         self.gemini_config = config;
+        self
+    }
+
+    pub fn gemma_config(mut self, config: crate::types::GemmaConfig) -> Self {
+        self.gemma_config = Some(config);
         self
     }
 
@@ -746,7 +753,12 @@ impl LocalConnectionStrategy {
             tools: tool_protos,
             system_instructions: self.system_instructions.clone(),
             cascade_id: self.conversation_id.clone().unwrap_or_default(),
-            gemini_config: Some(self.gemini_config.to_wire()),
+            gemini_config: if self.gemma_config.is_some() {
+                None
+            } else {
+                Some(self.gemini_config.to_wire())
+            },
+            gemma_config: self.gemma_config.clone(),
             workspaces: workspaces_pb,
             skills_paths: self.skills_paths.clone(),
             harness_side_tools: HarnessSideTools {
