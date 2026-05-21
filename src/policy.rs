@@ -255,6 +255,17 @@ pub fn workspace_only(workspaces: Vec<String>) -> Vec<Policy> {
     policies
 }
 
+impl crate::hooks::PreToolCallDecide for PolicyEngine {
+    fn run<'a>(&'a self, _context: &'a crate::hooks::OperationContext, tool_call: &'a ToolCall) -> crate::hooks::HookFuture<'a, Result<crate::hooks::HookResult, String>> {
+        let res = match self.evaluate(tool_call) {
+            Ok(true) => Ok(crate::hooks::HookResult::allow()),
+            Ok(false) => Ok(crate::hooks::HookResult::deny("")),
+            Err(err) => Ok(crate::hooks::HookResult::deny(&err)),
+        };
+        Box::pin(async move { res })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

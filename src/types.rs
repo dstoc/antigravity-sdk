@@ -790,6 +790,25 @@ pub struct UserQuestionsRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AskQuestionOption {
+    pub id: String,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AskQuestionEntry {
+    pub question: String,
+    pub options: Vec<AskQuestionOption>,
+    #[serde(rename = "isMultiSelect", alias = "is_multi_select", default)]
+    pub is_multi_select: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AskQuestionInteractionSpec {
+    pub questions: Vec<AskQuestionEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserQuestion {
     #[serde(rename = "multipleChoice", alias = "multiple_choice")]
     pub multiple_choice: MultipleChoice,
