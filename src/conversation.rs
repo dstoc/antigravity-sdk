@@ -288,7 +288,11 @@ impl Conversation {
     pub async fn chat(&self, prompt: Option<Content>) -> Result<ChatResponse, String> {
         self.send(prompt).await?;
         let last_turn_usg = self.turn_usage.lock().await.clone();
-        Ok(ChatResponse::new(self.receive_chunks(), last_turn_usg))
+        Ok(ChatResponse::new(self.receive_chunks(), last_turn_usg, Some(self.steps.clone())))
+    }
+
+    pub async fn send_trigger_notification(&self, message: &str) -> Result<(), String> {
+        self.connection.send_trigger_notification(message).await
     }
 
     pub async fn history(&self) -> Vec<Step> {

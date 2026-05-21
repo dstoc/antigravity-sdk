@@ -429,6 +429,7 @@ pub struct LocalConnectionStrategy {
     pub policies: Vec<crate::policy::Policy>,
     pub custom_tools: Vec<Arc<dyn CustomTool>>,
     pub hook_runner: crate::hooks::HookRunner,
+    pub conversation_id: Option<String>,
 }
 
 impl LocalConnectionStrategy {
@@ -451,6 +452,7 @@ impl LocalConnectionStrategy {
             policies: Vec::new(),
             custom_tools: Vec::new(),
             hook_runner: crate::hooks::HookRunner::new(),
+            conversation_id: None,
         }
     }
 
@@ -496,6 +498,46 @@ impl LocalConnectionStrategy {
 
     pub fn register_on_compaction<H: crate::hooks::OnCompaction + 'static>(mut self, hook: H) -> Self {
         self.hook_runner.register_on_compaction(hook);
+        self
+    }
+
+    pub fn app_data_dir(mut self, app_data_dir: impl Into<String>) -> Self {
+        self.app_data_dir = app_data_dir.into();
+        self
+    }
+
+    pub fn conversation_id(mut self, conversation_id: impl Into<String>) -> Self {
+        self.conversation_id = Some(conversation_id.into());
+        self
+    }
+
+    pub fn skills_paths(mut self, skills_paths: Vec<String>) -> Self {
+        self.skills_paths = skills_paths;
+        self
+    }
+
+    pub fn policies(mut self, policies: Vec<crate::policy::Policy>) -> Self {
+        self.policies = policies;
+        self
+    }
+
+    pub fn gemini_config(mut self, config: crate::types::GeminiConfig) -> Self {
+        self.gemini_config = config;
+        self
+    }
+
+    pub fn capabilities(mut self, capabilities: crate::types::CapabilitiesConfig) -> Self {
+        self.capabilities = capabilities;
+        self
+    }
+
+    pub fn system_instructions(mut self, system_instructions: crate::types::SystemInstructions) -> Self {
+        self.system_instructions = Some(system_instructions);
+        self
+    }
+
+    pub fn custom_tools(mut self, custom_tools: Vec<std::sync::Arc<dyn CustomTool>>) -> Self {
+        self.custom_tools = custom_tools;
         self
     }
 }
@@ -617,7 +659,7 @@ impl LocalConnectionStrategy {
         let harness_config = HarnessConfig {
             tools: tool_protos,
             system_instructions: self.system_instructions.clone(),
-            cascade_id: String::new(),
+            cascade_id: self.conversation_id.clone().unwrap_or_default(),
             gemini_config: Some(self.gemini_config.to_wire()),
             workspaces: workspaces_pb,
             skills_paths: self.skills_paths.clone(),

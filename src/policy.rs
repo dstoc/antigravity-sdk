@@ -44,6 +44,19 @@ impl Policy {
             name: name.to_string(),
         }
     }
+
+    pub fn when<F>(mut self, predicate: F) -> Self
+    where
+        F: Fn(&serde_json::Value) -> bool + Send + Sync + 'static,
+    {
+        self.when = Some(Arc::new(predicate));
+        self
+    }
+
+    pub fn name(mut self, name: &str) -> Self {
+        self.name = name.to_string();
+        self
+    }
 }
 
 pub struct PolicyEngine {

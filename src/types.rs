@@ -422,6 +422,15 @@ pub struct SystemInstructionSection {
     pub content: String,
 }
 
+impl SystemInstructionSection {
+    pub fn new(title: impl Into<String>, content: impl Into<String>) -> Self {
+        Self {
+            title: Some(title.into()),
+            content: content.into(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomSystemInstructionPart {
     pub text: String,
@@ -446,6 +455,27 @@ pub struct SystemInstructions {
     pub custom: Option<CustomSystemInstructions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub appended: Option<AppendedSystemInstructions>,
+}
+
+impl SystemInstructions {
+    pub fn custom(text: impl Into<String>) -> Self {
+        Self {
+            custom: Some(CustomSystemInstructions {
+                part: vec![CustomSystemInstructionPart { text: text.into() }],
+            }),
+            appended: None,
+        }
+    }
+
+    pub fn templated(identity: impl Into<String>, sections: Vec<SystemInstructionSection>) -> Self {
+        Self {
+            custom: None,
+            appended: Some(AppendedSystemInstructions {
+                custom_identity: Some(identity.into()),
+                appended_sections: sections,
+            }),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -974,6 +1004,34 @@ pub struct Media {
     pub description: Option<String>,
 }
 
+impl Media {
+    pub fn from_file<P: AsRef<std::path::Path>>(path: P) -> Result<Self, String> {
+        let path = path.as_ref();
+        let data = std::fs::read(path).map_err(|e| format!("Failed to read file: {}", e))?;
+        let mime_type = match path.extension().and_then(|ext| ext.to_str()) {
+            Some("png") => "image/png",
+            Some("jpg") | Some("jpeg") => "image/jpeg",
+            Some("gif") => "image/gif",
+            Some("webp") => "image/webp",
+            Some("pdf") => "application/pdf",
+            Some("txt") => "text/plain",
+            Some("json") => "application/json",
+            Some("html") => "text/html",
+            Some("md") => "text/markdown",
+            Some("mp3") => "audio/mp3",
+            Some("wav") => "audio/wav",
+            Some("mp4") => "video/mp4",
+            _ => "application/octet-stream",
+        }.to_string();
+
+        Ok(Self {
+            mime_type,
+            data,
+            description: None,
+        })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum ContentPrimitive {
     Text(String),
@@ -1004,6 +1062,12 @@ impl IntoContent for Content {
     }
 }
 
+impl IntoContent for Media {
+    fn into_content(self) -> Content {
+        vec![ContentPrimitive::Media(self)]
+    }
+}
+
 // =============================================================================
 // Streaming and Response Types
 // =============================================================================
@@ -1020,6 +1084,7 @@ struct ChatResponseState {
     buffered: Vec<StreamChunk>,
     is_done: bool,
     last_turn_usage: Option<UsageMetadata>,
+    steps: Option<Arc<Mutex<Vec<Step>>>>,
 }
 
 #[derive(Clone)]
@@ -1031,6 +1096,7 @@ impl ChatResponse {
     pub fn new(
         stream: BoxStream<'static, StreamChunk>,
         last_turn_usage: Option<UsageMetadata>,
+        steps: Option<Arc<Mutex<Vec<Step>>>>,
     ) -> Self {
         Self {
             state: Arc::new(Mutex::new(ChatResponseState {
@@ -1038,8 +1104,51 @@ impl ChatResponse {
                 buffered: Vec::new(),
                 is_done: false,
                 last_turn_usage,
+                steps,
             })),
         }
+    }
+
+    pub fn thoughts(&self) -> BoxStream<'static, String> {
+        Box::pin(self.chunks().filter_map(|chunk| async move {
+            match chunk {
+                StreamChunk::Thought { text, .. } => Some(text),
+                _ => None,
+            }
+        }))
+    }
+
+    pub fn text_stream(&self) -> BoxStream<'static, String> {
+        Box::pin(self.chunks().filter_map(|chunk| async move {
+            match chunk {
+                StreamChunk::Text { text, .. } => Some(text),
+                _ => None,
+            }
+        }))
+    }
+
+    pub async fn structured_output(&self) -> Option<serde_json::Value> {
+        self.resolve().await;
+        let steps_opt = {
+            let state = self.state.lock().await;
+            state.steps.clone()
+        };
+        if let Some(steps_arc) = steps_opt {
+            let steps = steps_arc.lock().await;
+            for step in steps.iter().rev() {
+                if step.r#type == StepType::Finish {
+                    if let Some(ref val) = step.structured_output {
+                        return Some(val.clone());
+                    }
+                }
+                if step.r#type == StepType::Finish || step.is_complete_response.unwrap_or(false) {
+                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&step.content) {
+                        return Some(parsed);
+                    }
+                }
+            }
+        }
+        None
     }
 
     pub async fn text(&self) -> String {

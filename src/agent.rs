@@ -36,6 +36,11 @@ impl Agent {
         self.conversation.chat(prompt).await
     }
 
+    /// Sends a trigger notification to the agent.
+    pub async fn send_trigger_notification(&self, message: &str) -> Result<(), String> {
+        self.conversation.send_trigger_notification(message).await
+    }
+
     /// Returns the active Conversation session.
     pub fn conversation(&self) -> &Conversation {
         &self.conversation

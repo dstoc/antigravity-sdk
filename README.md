@@ -327,17 +327,25 @@ config.policies = vec![
 ```
 
 ---
+---
 
 ## Running the Examples
 
-Execute the packaged integration scripts to check communication in your terminal:
+Execute any of the packaged examples from the cargo workspace:
 
-### Chat Example
 ```bash
+# General run pattern:
+GEMINI_API_KEY=your_key RUST_LOG=info cargo run --example <example_name>
+
+# Running Hello World:
 cargo run --example hello_world
-```
 
-### Custom & Stateful Tools Example
-```bash
+# Running Custom Tools:
 cargo run --example custom_tools
+
+# Running Observability & Hooks:
+cargo run --example observability
+
+# Running Stateful Session Persistence:
+cargo run --example persistence
 ```
